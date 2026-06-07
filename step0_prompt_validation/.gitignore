@@ -1,0 +1,12 @@
+# API 키 등 비밀값 — 절대 깃에 올리지 말 것
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Python
+__pycache__/
+*.pyc
+
+# 생성 결과 저장 폴더(선택)
+outputs/
