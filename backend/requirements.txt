@@ -1,0 +1,6 @@
+# 백엔드(FastAPI) 실행에 필요한 패키지
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+python-dotenv
