@@ -12,7 +12,7 @@ client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
 MODEL = "gemini-2.5-flash-lite"   # 무료 한도 가장 넉넉한 모델로 검증
 
 # 노트북에서 PERSONAS / build_prompt / SYSTEM_INSTRUCTION 정의만 재사용 (연결테스트 셀은 제외)
-nb = nbformat.read("dialogue_prompt_test.ipynb", as_version=4)
+nb = nbformat.read("notebook.ipynb", as_version=4)
 ns = {"client": client, "types": types, "json": json, "MODEL": MODEL}
 for idx in (4, 6):
     exec(nb.cells[idx].source, ns)
@@ -51,8 +51,8 @@ def char_overlap(a, b):
     return len(sa & sb) / len(sa | sb) if (sa | sb) else 0.0
 
 
-REPORT = "step0_report.md"
-lines = [f"# STEP 0 검증 리포트 (v2 · model={MODEL})\n"]
+REPORT = "result.md"
+lines = [f"# STEP 0 검증 결과 (v2 · model={MODEL})\n"]
 
 
 def flush():

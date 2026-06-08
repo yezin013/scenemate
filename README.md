@@ -14,12 +14,12 @@ AI 오디션 독백 대사 매칭 서비스. 사진·자기소개·목소리 세
 
 ```
 scenemate/
-├─ step0_prompt_validation/   # STEP 0 프롬프트 검증
-│  ├─ dialogue_prompt_test.ipynb   # 메인 검증 노트북
-│  ├─ _build_notebook.py           # 노트북 빌더(재생성용)
-│  ├─ _run_step0.py                # 전체 페르소나 일괄 실행 + 리포트 저장
-│  ├─ step0_report.md              # 생성 결과 리포트
-│  └─ .env.example                 # 환경변수 예시 (.env 는 깃 제외)
+├─ prompt_test/   # STEP 0 프롬프트 검증
+│  ├─ notebook.ipynb     # 메인 검증 노트북
+│  ├─ build.py           # 노트북 빌더(재생성용)
+│  ├─ run.py             # 전체 페르소나 일괄 실행 + 결과 저장
+│  ├─ result.md          # 생성 결과 리포트
+│  └─ .env.example       # 환경변수 예시 (.env 는 깃 제외)
 ├─ backend/    # (예정) FastAPI + PostgreSQL/pgvector + Redis
 └─ frontend/   # (예정) React + Tailwind
 ```
@@ -38,12 +38,12 @@ conda activate scenemate
 pip install -r requirements.txt
 
 # 3) API 키 설정 (.env 는 깃에 없으므로 직접 생성)
-#    step0_prompt_validation/.env.example 를 .env 로 복사 후 본인 키 입력
+#    prompt_test/.env.example 를 .env 로 복사 후 본인 키 입력
 #    GOOGLE_API_KEY=...
 
 # 4) STEP 0 실행
-cd step0_prompt_validation
-jupyter lab dialogue_prompt_test.ipynb
+cd prompt_test
+jupyter lab notebook.ipynb
 ```
 
 ## 기술 스택

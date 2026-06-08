@@ -1,4 +1,4 @@
-"""dialogue_prompt_test.ipynb 생성용 빌더. 한 번 실행 후 지워도 됨.
+"""notebook.ipynb 생성용 빌더. 한 번 실행 후 지워도 됨.
 
 설계 v2: 트랙 = 내용 축(외모 / 성격), 목소리 = 두 트랙 공통 '전달 스타일' 제약.
 """
@@ -259,6 +259,6 @@ nb["metadata"] = {
     "language_info": {"name": "python", "version": "3.12"},
 }
 
-with open("dialogue_prompt_test.ipynb", "w", encoding="utf-8") as f:
+with open("notebook.ipynb", "w", encoding="utf-8") as f:
     nbf.write(nb, f)
-print("dialogue_prompt_test.ipynb 생성 완료, 셀", len(cells), "개")
+print("notebook.ipynb 생성 완료, 셀", len(cells), "개")
