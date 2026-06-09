@@ -48,8 +48,8 @@ def _save_tracks(db: Session, result: dict, inputs: dict) -> list[int]:
         t = result[key]
         objs.append(models.Script(
             source="ai", track=track_name,
-            title=t.get("title"), setup=t.get("setup"),
-            script_text=t["script"], fit_reason=t.get("fit_reason"),
+            title=t.get("title"), setup=t.get("situation"),       # 상황 → setup 컬럼
+            script_text=t["script"], fit_reason=t.get("objective"),  # 목적 → fit_reason 컬럼
             voice_style=t.get("voice_style"), inputs=inputs,
         ))
     db.add_all(objs)

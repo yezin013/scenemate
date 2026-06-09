@@ -36,10 +36,10 @@ def gen(persona, temperature=0.9, tries=5):
             return json.loads(resp.text)
         except Exception as e:
             msg = str(e)
-            if "429" in msg or "RESOURCE_EXHAUSTED" in msg:
+            if any(x in msg for x in ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED")):
                 m = re.search(r"retry in ([0-9.]+)", msg)
-                wait = (float(m.group(1)) + 2) if m else 20
-                print(f"  429 한도 → {wait:.0f}s 대기 후 재시도")
+                wait = (float(m.group(1)) + 2) if m else 12
+                print(f"  한도/과부하 → {wait:.0f}s 대기 후 재시도")
                 time.sleep(wait)
                 continue
             raise
@@ -52,7 +52,7 @@ def char_overlap(a, b):
 
 
 REPORT = "result.md"
-lines = [f"# STEP 0 검증 결과 (v2 · model={MODEL})\n"]
+lines = [f"# STEP 0 검증 결과 (v3 목적·행동 중심 · model={MODEL})\n"]
 
 
 def flush():
@@ -73,16 +73,13 @@ for p in PERSONAS:
     lines.append(f"- 입력 외모: {p['appearance_keywords']}")
     lines.append(f"- 입력 성격: {p['self_intro']}")
     lines.append(f"- 입력 말투: {p['voice_tone']}\n")
-    lines.append(f"### 🅰 외모 기반 — {a['title']} ({len(a['script'])}자)")
-    lines.append(f"*상황: {a['setup']}*")
-    lines.append(f"*목소리 반영: {a.get('voice_style','-')}*\n")
-    lines.append(a["script"])
-    lines.append(f"\n> 어울리는 이유: {a['fit_reason']}\n")
-    lines.append(f"### 🅱 성격 기반 — {b['title']} ({len(b['script'])}자)")
-    lines.append(f"*상황: {b['setup']}*")
-    lines.append(f"*목소리 반영: {b.get('voice_style','-')}*\n")
-    lines.append(b["script"])
-    lines.append(f"\n> 어울리는 이유: {b['fit_reason']}\n")
+    for track, label in [(a, "🅰 외모 기반"), (b, "🅱 성격 기반")]:
+        lines.append(f"### {label} — {track['title']} ({len(track['script'])}자)")
+        lines.append(f"*상황: {track.get('situation','-')}*")
+        lines.append(f"*목적: {track.get('objective','-')}*")
+        lines.append(f"*목소리: {track.get('voice_style','-')}*\n")
+        lines.append(track["script"])
+        lines.append("")
     lines.append("---\n")
     flush()  # 매 페르소나마다 저장
     time.sleep(4)

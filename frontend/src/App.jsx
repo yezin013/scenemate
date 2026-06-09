@@ -72,10 +72,10 @@ function Track({ label, data }) {
   return (
     <div className="track">
       <h2>{label} — {data.title}</h2>
-      <p className="setup">{data.setup}</p>
+      <p className="setup">상황: {data.situation}</p>
+      <p className="meta">목적: {data.objective}</p>
       <p className="script">{data.script}</p>
-      <p className="meta">어울리는 이유: {data.fit_reason}</p>
-      {data.voice_style && <p className="meta">목소리 반영: {data.voice_style}</p>}
+      {data.voice_style && <p className="meta">목소리: {data.voice_style}</p>}
     </div>
   )
 }

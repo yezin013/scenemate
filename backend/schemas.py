@@ -13,11 +13,11 @@ class GenerateRequest(BaseModel):
 
 
 class Track(BaseModel):
-    """대사 한 트랙."""
+    """대사 한 트랙 (v3: 목적·행동 중심)."""
     title: str
-    setup: str
+    situation: str          # 상대 + 전사 + 지금 상황
+    objective: str          # 인물의 목적(행동 동사)
     script: str
-    fit_reason: str
     voice_style: str | None = None
 
 
