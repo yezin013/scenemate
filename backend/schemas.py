@@ -3,6 +3,30 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+# ── 대사 생성 ─────────────────────────────────────────────
+class GenerateRequest(BaseModel):
+    """대사 생성 요청 (입력 3종 텍스트)."""
+    appearance_keywords: str
+    self_intro: str
+    voice_tone: str
+    save: bool = False   # True면 생성된 두 트랙을 scripts에 자동 저장
+
+
+class Track(BaseModel):
+    """대사 한 트랙."""
+    title: str
+    setup: str
+    script: str
+    fit_reason: str
+    voice_style: str | None = None
+
+
+class GenerateResponse(BaseModel):
+    track_A_appearance: Track
+    track_B_personality: Track
+    saved_ids: list[int] | None = None   # save=True일 때 저장된 행 id
+
+
 class ScriptCreate(BaseModel):
     """대사 저장 요청 형식."""
     script_text: str
