@@ -2,6 +2,7 @@
 from typing import List
 
 from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Form
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -12,6 +13,14 @@ from generator import generate_dialogues
 from vision import extract_keywords
 
 app = FastAPI(title="SceneMate API", version="0.1.0")
+
+# 개발용: 프론트엔드(브라우저)에서 API 호출 허용. 배포 시엔 도메인을 좁히는 게 좋음.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ── 헬스체크 ──────────────────────────────────────────────
