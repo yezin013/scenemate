@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
-// 백엔드 주소 — uvicorn 실행 포트에 맞추세요. (예: --port 8001 로 띄우면 8001로 변경)
-const API = 'http://localhost:8000'
+// 백엔드 주소 — uvicorn 실행 포트와 맞춰야 함. (백엔드를 8000에서 띄우면 8000으로 변경)
+const API = 'http://localhost:8001'
 
 export default function App() {
   const [photo, setPhoto] = useState(null)
