@@ -1,7 +1,7 @@
 """SceneMate API — FastAPI 진입점."""
 from typing import List
 
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Form
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -9,6 +9,7 @@ from db import get_db
 import models
 from schemas import ScriptCreate, ScriptOut, GenerateRequest, GenerateResponse
 from generator import generate_dialogues
+from vision import extract_keywords
 
 app = FastAPI(title="SceneMate API", version="0.1.0")
 
@@ -30,14 +31,32 @@ def health_db(db: Session = Depends(get_db)):
     return {"db": "connected", "version": version[:60]}
 
 
-# ── 대사 생성 (AI) ────────────────────────────────────────
+# ── 생성 결과 저장 헬퍼 ───────────────────────────────────
+def _save_tracks(db: Session, result: dict, inputs: dict) -> list[int]:
+    objs = []
+    for key, track_name in [("track_A_appearance", "appearance"),
+                            ("track_B_personality", "personality")]:
+        t = result[key]
+        objs.append(models.Script(
+            source="ai", track=track_name,
+            title=t.get("title"), setup=t.get("setup"),
+            script_text=t["script"], fit_reason=t.get("fit_reason"),
+            voice_style=t.get("voice_style"), inputs=inputs,
+        ))
+    db.add_all(objs)
+    db.commit()
+    for o in objs:
+        db.refresh(o)
+    return [o.id for o in objs]
+
+
+# ── 대사 생성: 텍스트 입력 ────────────────────────────────
 @app.post("/generate", response_model=GenerateResponse)
 def generate(payload: GenerateRequest, db: Session = Depends(get_db)):
-    """입력 3종(외모키워드·자기소개·말투) → 대사 두 개 생성. save=True면 아카이브 저장."""
+    """입력 3종(외모키워드·자기소개·말투 텍스트) → 대사 2개."""
     result = generate_dialogues(
         payload.appearance_keywords, payload.self_intro, payload.voice_tone
     )
-
     saved_ids = None
     if payload.save:
         inputs = {
@@ -45,23 +64,30 @@ def generate(payload: GenerateRequest, db: Session = Depends(get_db)):
             "self_intro": payload.self_intro,
             "voice_tone": payload.voice_tone,
         }
-        objs = []
-        for key, track_name in [("track_A_appearance", "appearance"),
-                                ("track_B_personality", "personality")]:
-            t = result[key]
-            objs.append(models.Script(
-                source="ai", track=track_name,
-                title=t.get("title"), setup=t.get("setup"),
-                script_text=t["script"], fit_reason=t.get("fit_reason"),
-                voice_style=t.get("voice_style"), inputs=inputs,
-            ))
-        db.add_all(objs)
-        db.commit()
-        for o in objs:
-            db.refresh(o)
-        saved_ids = [o.id for o in objs]
+        saved_ids = _save_tracks(db, result, inputs)
+    return {**result, "appearance_keywords": payload.appearance_keywords, "saved_ids": saved_ids}
 
-    return {**result, "saved_ids": saved_ids}
+
+# ── 대사 생성: 사진 업로드 → Vision 키워드 추출 ───────────
+@app.post("/generate-from-photo", response_model=GenerateResponse)
+def generate_from_photo(
+    photo: UploadFile = File(...),
+    self_intro: str = Form(...),
+    voice_tone: str = Form(...),
+    save: bool = Form(False),
+    db: Session = Depends(get_db),
+):
+    """사진 + 자기소개 + 말투 → Vision으로 외모 키워드 추출 후 대사 2개 생성."""
+    image_bytes = photo.file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="empty photo")
+    keywords = extract_keywords(image_bytes, photo.content_type or "image/jpeg")
+    result = generate_dialogues(keywords, self_intro, voice_tone)
+    saved_ids = None
+    if save:
+        inputs = {"appearance_keywords": keywords, "self_intro": self_intro, "voice_tone": voice_tone}
+        saved_ids = _save_tracks(db, result, inputs)
+    return {**result, "appearance_keywords": keywords, "saved_ids": saved_ids}
 
 
 # ── 아카이브 (대사 저장/조회) ─────────────────────────────

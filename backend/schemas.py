@@ -24,7 +24,8 @@ class Track(BaseModel):
 class GenerateResponse(BaseModel):
     track_A_appearance: Track
     track_B_personality: Track
-    saved_ids: list[int] | None = None   # save=True일 때 저장된 행 id
+    appearance_keywords: str | None = None   # (사진 입력 시) Vision이 뽑은 키워드
+    saved_ids: list[int] | None = None       # save=True일 때 저장된 행 id
 
 
 class ScriptCreate(BaseModel):
