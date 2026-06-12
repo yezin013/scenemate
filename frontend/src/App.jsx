@@ -103,10 +103,7 @@ function Track({ tone, badge, label, data }) {
     <article className={`track track-${tone}`}>
       <header className="track-head">
         <span className="badge">{badge}</span>
-        <div>
-          <span className="track-label">{label}</span>
-          <h2 className="track-title">{data.title}</h2>
-        </div>
+        <h2 className="track-title">{label}</h2>
       </header>
       <dl className="track-meta">
         <div><dt>상황</dt><dd>{data.situation}</dd></div>
