@@ -9,7 +9,7 @@ from google.genai import types
 
 load_dotenv()
 client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
-MODEL = "gemini-2.5-flash"   # 품질 비교용(더 똑똑한 모델). 무료 ~20회/일.
+MODEL = "gemini-2.5-flash-lite"   # 반복 검증용(무료 한도 넉넉). 품질 비교는 _compare.py(2.5-flash).
 
 # 노트북에서 PERSONAS / build_prompt / SYSTEM_INSTRUCTION 정의만 재사용 (연결테스트 셀은 제외)
 nb = nbformat.read("notebook.ipynb", as_version=4)
