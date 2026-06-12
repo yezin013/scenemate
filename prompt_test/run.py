@@ -9,7 +9,7 @@ from google.genai import types
 
 load_dotenv()
 client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
-MODEL = "gemini-2.5-flash-lite"   # 무료 한도 가장 넉넉한 모델로 검증
+MODEL = "gemini-2.5-flash"   # 품질 비교용(더 똑똑한 모델). 무료 ~20회/일.
 
 # 노트북에서 PERSONAS / build_prompt / SYSTEM_INSTRUCTION 정의만 재사용 (연결테스트 셀은 제외)
 nb = nbformat.read("notebook.ipynb", as_version=4)
@@ -82,7 +82,7 @@ for p in PERSONAS:
         lines.append("")
     lines.append("---\n")
     flush()  # 매 페르소나마다 저장
-    time.sleep(4)
+    time.sleep(7)  # 호출 간격: 분당 한도 폭주 방지
 
 # 자동 체크
 lines.append("## 자동 체크\n")
