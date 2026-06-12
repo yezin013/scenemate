@@ -117,14 +117,14 @@ def judge(persona, track_kind, track):
 
 [검수 대상 — {kind_label} 기반 트랙]
 제목: {track.get('title','')}
-상황: {track.get('setup','')}
+상황: {track.get('situation','')}
 대사: {track.get('script','')}
 
 다음 4가지를 각각 OK/NG로 판정하고 근거를 한 줄로 쓰세요.
 1) 호칭일관성: 화자가 부르는 말 상대/호칭이 대사 중간에 뒤죽박죽 바뀌지 않는가.
 2) 회상클리셰: 시계·사진·앨범·편지·인형 등 오래된 물건을 보며 과거나 떠난 사람을 추억하는 감상적 회상 독백이면 NG. 지금 벌어지는 사건(행동·결정·대립·설득·고백)이면 OK.
 3) 트랙적합성: {fit_rule}
-4) 말투자연스러움: 위 [목소리·말투]로 실제 사람이 말하듯 자연스러운가. 토막토막 끊기거나, 부자연스러운 AI 말투, 어색한 군더더기가 있으면 NG.
+4) 말투자연스러움: 실제 사람이 입으로 말하듯 들리는가 — '말투·문장 자체의 자연스러움'만 본다. 로봇 같은 반복('나는 ~한다' 나열)·토막토막 끊김·문어체/낭독체·번역투가 있으면 NG. ※ 감정이 강한 것, 또는 페르소나 톤(차분/차가움 등)과 안 맞는 것은 여기서 NG 사유가 '아니다'(그건 트랙적합성에서 본다). 자연스러운 한국어 구어라면 감정적이어도 OK.
 
 반드시 아래 JSON으로만 답하세요:
 {{"호칭일관성":{{"status":"OK","근거":""}},"회상클리셰":{{"status":"OK","근거":""}},"트랙적합성":{{"status":"OK","근거":""}},"말투자연스러움":{{"status":"OK","근거":""}}}}"""
@@ -138,14 +138,14 @@ def ng_list(verdict):
 
 # ---------- 3) 교정 ----------
 def fix(persona, track_kind, track, issues):
-    """지적된 문제만 고쳐서 대사를 다시 씀. 상황·캐릭터는 유지."""
+    """지적된 문제를 고쳐 대사를 다시 씀. 구조적 문제(트랙적합성/회상)면 상황도 바꿈, 자연스러움 최우선."""
     kind_label = "외모(첫인상)" if track_kind == "A" else "성격(내면)"
     prompt = f"""아래 오디션 독백 대사에 지적된 문제들이 있습니다. 지적된 문제'만' 고쳐서 다시 쓰세요.
 
 [배우] 외모: {persona['appearance_keywords']} / 성격: {persona['self_intro']} / 목소리: {persona['voice_tone']}
 [이 트랙] {kind_label} 기반
 [제목] {track.get('title','')}
-[상황] {track.get('setup','')}
+[상황] {track.get('situation','')}
 [현재 대사]
 {track.get('script','')}
 
@@ -153,32 +153,47 @@ def fix(persona, track_kind, track, issues):
 - """ + "\n- ".join(issues) + f"""
 
 규칙:
-- 상황·캐릭터·장르는 그대로 유지하고, 지적된 문제만 교정한다.
-- 목소리·말투로 실제 사람이 말하듯 자연스럽게. 토막/부자연스러운 AI 말투/군더더기 금지.
-- 회상 클리셰가 지적됐으면 지금 벌어지는 현재형 사건으로 바꾼다.
-- 길이는 {LEN_MIN}~{LEN_MAX}자를 반드시 지킨다. 교정하면서 대사를 줄이지 말 것 — 원본보다 짧아지면 안 되고, {LEN_MIN}자 미만이면 상황·심리 묘사를 더 채워 늘린다.
-반드시 JSON으로만: {{"title":"...","setup":"...","script":"...","fit_reason":"...","voice_style":"..."}}"""
+- 최우선: '실제 사람이 입으로 말하는 자연스러움'. 어떤 경우에도 문어체·낭독체·로봇 같은 말투로 만들지 말 것. (차분하거나 차가운 톤이어도 반드시 사람의 구어여야 한다.)
+- '트랙적합성' 또는 '회상 클리셰'가 지적됐으면 → 단어만 비틀지 말고 상황·소재 자체를 바꿔라. 그 외모/성격에 자연스럽게 어울리는 '다른 상황'을 새로 골라라. (시계·사진·편지 등 회상 소재는 버린다.)
+- 그 외 국소 문제(호칭 등)는 상황·캐릭터를 유지하고 해당 부분만 고친다.
+- 행동·동작·표정 지문은 반드시 괄호 ()로 묶어 '말로 하는 대사'와 구분한다. 예: (얼음을 손바닥에 덜어낸다) 차가운 감촉이 올라온다.
+- 길이는 {LEN_MIN}~{LEN_MAX}자를 지킨다. 줄이지 말 것 — {LEN_MIN}자 미만이면 상황·심리 묘사를 더 채워 늘린다.
+반드시 JSON으로만: {{"title":"...","situation":"...","objective":"...","script":"...","voice_style":"..."}}"""
     return _gen_json(JUDGE_MODEL, prompt, system=SYSTEM_INSTRUCTION, temperature=0.7)
 
 
-# ---------- 검사 + 교정 (한 트랙) ----------
+# ---------- 한 트랙 진단 (rule + 길이 + judge) ----------
+def _diagnose(persona, track_kind, track):
+    """통합 진단 → (이슈리스트, 정리된 track)."""
+    t = dict(track)
+    rule_issues, t["script"] = rule_clean(t.get("script", ""))
+    length = len(t["script"])
+    len_issue = [] if LEN_MIN <= length <= LEN_MAX else [f"길이 {length}자 (목표 {LEN_MIN}~{LEN_MAX})"]
+    verdict = judge(persona, track_kind, t); time.sleep(2)
+    return rule_issues + len_issue + ng_list(verdict), t
+
+
+# ---------- 검사 + 교정 + 악화방지(회귀 가드) ----------
 def validate_track(persona, track_kind, track):
-    log = {"passes": [], "final": None, "ok": False}
-    cur = dict(track)
-    for p in range(MAX_PASSES + 1):
-        rule_issues, cur["script"] = rule_clean(cur.get("script", ""))   # 기계적 결함 결정적 정리
-        length = len(cur["script"])
-        len_issue = [] if LEN_MIN <= length <= LEN_MAX else [f"길이 {length}자 (목표 {LEN_MIN}~{LEN_MAX})"]
-        verdict = judge(persona, track_kind, cur); time.sleep(2)         # LLM 판단
-        all_issues = rule_issues + len_issue + ng_list(verdict)
-        log["passes"].append({"pass": p, "issues": all_issues})
-        if not all_issues:
-            log["ok"] = True
+    """원본 진단 → 교정 시도. 단, 교정본이 원본보다 '나아질 때만' 채택한다.
+    나아지지 않으면(같거나 더 나쁨) 교정본을 버리고 직전 최선본을 유지 → 악화 방지."""
+    issues, cur = _diagnose(persona, track_kind, track)             # 원본 진단
+    log = {"passes": [{"pass": 0, "issues": issues}], "reverted": False}
+    best, best_issues = cur, issues
+    for p in range(1, MAX_PASSES + 1):
+        if not best_issues:                                         # 이미 깨끗 → 끝
             break
-        if p == MAX_PASSES:                                              # 상한 도달 → 사람에게
+        cand = fix(persona, track_kind, best, best_issues); time.sleep(2)
+        cand_issues, cand = _diagnose(persona, track_kind, cand)    # 교정본 재진단
+        log["passes"].append({"pass": p, "issues": cand_issues})
+        if len(cand_issues) < len(best_issues):                     # 나아짐 → 채택
+            best, best_issues = cand, cand_issues
+        else:                                                       # 안 나아짐 → 교정본 폐기, 최선본 유지
+            log["reverted"] = True
             break
-        cur = fix(persona, track_kind, cur, all_issues); time.sleep(2)   # 교정 후 재검사
-    log["final"] = cur
+    log["final"] = best
+    log["best_issues"] = best_issues
+    log["ok"] = (len(best_issues) == 0)
     return log
 
 
@@ -208,13 +223,14 @@ def main():
             first_issues = log["passes"][0]["issues"]
             out.append(f"### {label} — {status}")
             out.append(f"- 원본 결함: {', '.join(first_issues) if first_issues else '없음 (원본부터 깨끗)'}")
-            out.append(f"- 교정 횟수: {len(log['passes']) - 1}회")
+            revert_note = "  (교정이 더 나빠져 폐기 → 직전 최선본 유지)" if log.get("reverted") else ""
+            out.append(f"- 교정 횟수: {len(log['passes']) - 1}회{revert_note}")
             out.append(f"\n**최종 ({len(fin.get('script',''))}자) — {fin.get('title','')}**")
-            out.append(f"*상황: {fin.get('setup','')}*")
+            out.append(f"*상황: {fin.get('situation','')}*")
             out.append(f"*목소리 반영: {fin.get('voice_style','-')}*\n")
             out.append(fin.get("script", ""))
             if not log["ok"]:
-                out.append(f"\n> ⚠️ 잔여 문제(사람이 확인): {', '.join(log['passes'][-1]['issues'])}")
+                out.append(f"\n> ⚠️ 잔여 문제(사람이 확인): {', '.join(log['best_issues'])}")
             out.append("")
             flush()           # 트랙마다 저장 (중간에 죽어도 손실 X)
         out.append("---\n")
