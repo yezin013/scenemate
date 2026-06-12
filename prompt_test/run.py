@@ -71,13 +71,11 @@ for p in PERSONAS:
     a, b = r["track_A_appearance"], r["track_B_personality"]
     lines.append(f"## {p['name']}\n")
     lines.append(f"- 입력 외모: {p['appearance_keywords']}")
-    lines.append(f"- 입력 성격: {p['self_intro']}")
-    lines.append(f"- 입력 말투: {p['voice_tone']}\n")
+    lines.append(f"- 입력 성격: {p['self_intro']}\n")
     for track, label in [(a, "🅰 외모 기반"), (b, "🅱 성격 기반")]:
         lines.append(f"### {label} — {track['title']} ({len(track['script'])}자)")
         lines.append(f"*상황: {track.get('situation','-')}*")
-        lines.append(f"*목적: {track.get('objective','-')}*")
-        lines.append(f"*목소리: {track.get('voice_style','-')}*\n")
+        lines.append(f"*목적: {track.get('objective','-')}*\n")
         lines.append(track["script"])
         lines.append("")
     lines.append("---\n")

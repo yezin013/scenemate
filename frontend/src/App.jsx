@@ -7,7 +7,6 @@ export default function App() {
   const [photo, setPhoto] = useState(null)
   const [preview, setPreview] = useState('')
   const [selfIntro, setSelfIntro] = useState('')
-  const [voiceTone, setVoiceTone] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
@@ -28,7 +27,6 @@ export default function App() {
       const fd = new FormData()
       fd.append('photo', photo)
       fd.append('self_intro', selfIntro)
-      fd.append('voice_tone', voiceTone)
       fd.append('save', 'false')
       const res = await fetch(`${API}/generate-from-photo`, { method: 'POST', body: fd })
       if (!res.ok) throw new Error(`서버 오류 ${res.status}`)
@@ -62,14 +60,8 @@ export default function App() {
 
         <label className="field">
           <span className="field-label">자기소개 <em>성격 · 내면</em></span>
-          <textarea rows={3} value={selfIntro} onChange={(e) => setSelfIntro(e.target.value)}
+          <textarea rows={4} value={selfIntro} onChange={(e) => setSelfIntro(e.target.value)}
             placeholder="예: 밝고 장난기 많고 에너지가 넘쳐요. 겉은 차분한데 속은 욕심이 많아요." />
-        </label>
-
-        <label className="field">
-          <span className="field-label">목소리 · 말투</span>
-          <input type="text" value={voiceTone} onChange={(e) => setVoiceTone(e.target.value)}
-            placeholder="예: 낮고 차분한 톤, 또박또박한 발음" />
         </label>
 
         <button className="cta" disabled={loading}>
@@ -110,7 +102,6 @@ function Track({ tone, badge, label, data }) {
         <div><dt>목적</dt><dd>{data.objective}</dd></div>
       </dl>
       <p className="script">{data.script}</p>
-      {data.voice_style && <p className="voice">🎙 {data.voice_style}</p>}
     </article>
   )
 }

@@ -50,7 +50,7 @@ def _save_tracks(db: Session, result: dict, inputs: dict) -> list[int]:
             source="ai", track=track_name,
             title=t.get("title"), setup=t.get("situation"),       # 상황 → setup 컬럼
             script_text=t["script"], fit_reason=t.get("objective"),  # 목적 → fit_reason 컬럼
-            voice_style=t.get("voice_style"), inputs=inputs,
+            inputs=inputs,
         ))
     db.add_all(objs)
     db.commit()
@@ -62,16 +62,13 @@ def _save_tracks(db: Session, result: dict, inputs: dict) -> list[int]:
 # ── 대사 생성: 텍스트 입력 ────────────────────────────────
 @app.post("/generate", response_model=GenerateResponse)
 def generate(payload: GenerateRequest, db: Session = Depends(get_db)):
-    """입력 3종(외모키워드·자기소개·말투 텍스트) → 대사 2개."""
-    result = generate_dialogues(
-        payload.appearance_keywords, payload.self_intro, payload.voice_tone
-    )
+    """입력 2종(외모키워드·자기소개) → 대사 2개."""
+    result = generate_dialogues(payload.appearance_keywords, payload.self_intro)
     saved_ids = None
     if payload.save:
         inputs = {
             "appearance_keywords": payload.appearance_keywords,
             "self_intro": payload.self_intro,
-            "voice_tone": payload.voice_tone,
         }
         saved_ids = _save_tracks(db, result, inputs)
     return {**result, "appearance_keywords": payload.appearance_keywords, "saved_ids": saved_ids}
@@ -82,19 +79,18 @@ def generate(payload: GenerateRequest, db: Session = Depends(get_db)):
 def generate_from_photo(
     photo: UploadFile = File(...),
     self_intro: str = Form(...),
-    voice_tone: str = Form(...),
     save: bool = Form(False),
     db: Session = Depends(get_db),
 ):
-    """사진 + 자기소개 + 말투 → Vision으로 외모 키워드 추출 후 대사 2개 생성."""
+    """사진 + 자기소개 → Vision으로 외모 키워드 추출 후 대사 2개 생성."""
     image_bytes = photo.file.read()
     if not image_bytes:
         raise HTTPException(status_code=400, detail="empty photo")
     keywords = extract_keywords(image_bytes, photo.content_type or "image/jpeg")
-    result = generate_dialogues(keywords, self_intro, voice_tone)
+    result = generate_dialogues(keywords, self_intro)
     saved_ids = None
     if save:
-        inputs = {"appearance_keywords": keywords, "self_intro": self_intro, "voice_tone": voice_tone}
+        inputs = {"appearance_keywords": keywords, "self_intro": self_intro}
         saved_ids = _save_tracks(db, result, inputs)
     return {**result, "appearance_keywords": keywords, "saved_ids": saved_ids}
 

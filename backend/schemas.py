@@ -5,10 +5,9 @@ from pydantic import BaseModel
 
 # ── 대사 생성 ─────────────────────────────────────────────
 class GenerateRequest(BaseModel):
-    """대사 생성 요청 (입력 3종 텍스트)."""
+    """대사 생성 요청 (외모 키워드 + 자기소개)."""
     appearance_keywords: str
     self_intro: str
-    voice_tone: str
     save: bool = False   # True면 생성된 두 트랙을 scripts에 자동 저장
 
 
@@ -18,7 +17,6 @@ class Track(BaseModel):
     situation: str          # 상대 + 전사 + 지금 상황
     objective: str          # 인물의 목적(행동 동사)
     script: str
-    voice_style: str | None = None
 
 
 class GenerateResponse(BaseModel):
