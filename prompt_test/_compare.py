@@ -40,14 +40,12 @@ for idx in (1, 4):
     r = gen(p)
     out.append(f"## {p['name']}\n")
     out.append(f"- 입력 외모: {p['appearance_keywords']}")
-    out.append(f"- 입력 성격: {p['self_intro']}")
-    out.append(f"- 입력 말투: {p['voice_tone']}\n")
+    out.append(f"- 입력 성격: {p['self_intro']}\n")
     for k, lab in [("track_A_appearance", "🅰 외모 기반"), ("track_B_personality", "🅱 성격 기반")]:
         t = r[k]
         out.append(f"### {lab} — {t['title']} ({len(t['script'])}자)")
         out.append(f"*상황: {t.get('situation','-')}*")
-        out.append(f"*목적: {t.get('objective','-')}*")
-        out.append(f"*목소리: {t.get('voice_style','-')}*\n")
+        out.append(f"*목적: {t.get('objective','-')}*\n")
         out.append(t["script"])
         out.append("")
     out.append("---\n")

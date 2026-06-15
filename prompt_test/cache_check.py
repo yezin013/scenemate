@@ -31,7 +31,7 @@ def _fake_generate(model, contents, config):       # 네트워크 대신 가짜 
 
 va.client.models.generate_content = _fake_generate
 
-persona = {"appearance_keywords": "x", "self_intro": "y", "voice_tone": "z"}
+persona = {"appearance_keywords": "x", "self_intro": "y"}
 track   = {"title": "t", "situation": "s", "script": "안녕하세요. 테스트 대사입니다."}
 track2  = dict(track, script="다른 대사예요.")
 

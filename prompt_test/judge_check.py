@@ -50,7 +50,6 @@ CASES = [
         "persona": {
             "appearance_keywords": "도시적이고 서늘한 분위기, 날카로운 눈매, 무표정에 가까운 차분함",
             "self_intro": "차가워 보이지만 속은 여리다.",
-            "voice_tone": "차분하고 낮은 톤.",
         },
         "track": {
             "title": "오래된 시계",
@@ -67,7 +66,6 @@ CASES = [
         "persona": {
             "appearance_keywords": "평범한 인상.",
             "self_intro": "직설적이고 할 말은 다 한다.",
-            "voice_tone": "또렷하고 단정적.",
         },
         "track": {
             "title": "따지기",
@@ -83,7 +81,6 @@ CASES = [
         "persona": {
             "appearance_keywords": "도시적이고 서늘한 분위기, 날카로운 눈매, 단정한 검은 머리, 무표정",
             "self_intro": "사실은 장난기 많다.",
-            "voice_tone": "밝고 통통 튀는 톤.",
         },
         "track": {
             "title": "강아지",
@@ -99,7 +96,6 @@ CASES = [
         "persona": {
             "appearance_keywords": "평범한 인상.",
             "self_intro": "감정이 풍부하다.",
-            "voice_tone": "자연스럽고 따뜻한 말투.",
         },
         "track": {
             "title": "이별",
@@ -115,7 +111,6 @@ CASES = [
         "persona": {
             "appearance_keywords": "맑은 인상, 큰 눈망울.",
             "self_intro": "여려 보이지만 당차고 주도적이다.",
-            "voice_tone": "맑고 또렷한 목소리, 자신감 있는 어조.",
         },
         "track": {
             "title": "내 차례",
