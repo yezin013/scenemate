@@ -136,7 +136,6 @@ def judge(persona, track_kind, track):
     prompt = f"""[배우 분석]
 외모 키워드: {persona['appearance_keywords']}
 자기소개(성격): {persona['self_intro']}
-목소리·말투: {persona['voice_tone']}
 
 [검수 대상 — {kind_label} 기반 트랙]
 제목: {track.get('title','')}
@@ -165,7 +164,7 @@ def fix(persona, track_kind, track, issues):
     kind_label = "외모(첫인상)" if track_kind == "A" else "성격(내면)"
     prompt = f"""아래 오디션 독백 대사에 지적된 문제들이 있습니다. 지적된 문제'만' 고쳐서 다시 쓰세요.
 
-[배우] 외모: {persona['appearance_keywords']} / 성격: {persona['self_intro']} / 목소리: {persona['voice_tone']}
+[배우] 외모: {persona['appearance_keywords']} / 성격: {persona['self_intro']}
 [이 트랙] {kind_label} 기반
 [제목] {track.get('title','')}
 [상황] {track.get('situation','')}
@@ -181,7 +180,7 @@ def fix(persona, track_kind, track, issues):
 - 그 외 국소 문제(호칭 등)는 상황·캐릭터를 유지하고 해당 부분만 고친다.
 - 행동·동작·표정 지문은 반드시 괄호 ()로 묶어 '말로 하는 대사'와 구분한다. 예: (얼음을 손바닥에 덜어낸다) 차가운 감촉이 올라온다.
 - 길이는 {LEN_MIN}~{LEN_MAX}자를 지킨다. 줄이지 말 것 — {LEN_MIN}자 미만이면 상황·심리 묘사를 더 채워 늘린다.
-반드시 JSON으로만: {{"title":"...","situation":"...","objective":"...","script":"...","voice_style":"..."}}"""
+반드시 JSON으로만: {{"title":"...","situation":"...","objective":"...","script":"..."}}"""
     return _gen_json(JUDGE_MODEL, prompt, system=SYSTEM_INSTRUCTION, temperature=0.7)
 
 
@@ -249,8 +248,7 @@ def main():
             revert_note = "  (교정이 더 나빠져 폐기 → 직전 최선본 유지)" if log.get("reverted") else ""
             out.append(f"- 교정 횟수: {len(log['passes']) - 1}회{revert_note}")
             out.append(f"\n**최종 ({len(fin.get('script',''))}자) — {fin.get('title','')}**")
-            out.append(f"*상황: {fin.get('situation','')}*")
-            out.append(f"*목소리 반영: {fin.get('voice_style','-')}*\n")
+            out.append(f"*상황: {fin.get('situation','')}*\n")
             out.append(fin.get("script", ""))
             if not log["ok"]:
                 out.append(f"\n> ⚠️ 잔여 문제(사람이 확인): {', '.join(log['best_issues'])}")
