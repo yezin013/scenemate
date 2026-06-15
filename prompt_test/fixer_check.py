@@ -7,7 +7,8 @@
 
 실행: prompt_test 폴더에서  python fixer_check.py
 """
-import sys, io, contextlib, time
+import os, sys, io, contextlib, time
+os.environ.setdefault("GENAI_CACHE", "1")      # 픽스처 검증: 같은 입력은 캐시 → 첫 1회만 실제 호출
 try:
     sys.stdout.reconfigure(encoding="utf-8")   # 윈도 콘솔(cp949)에서도 한글/기호 안전
 except Exception:

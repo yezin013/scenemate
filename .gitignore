@@ -28,3 +28,6 @@ outputs/
 # === OS ===
 .DS_Store
 Thumbs.db
+
+# Gemini 응답 캐시 (픽스처 검증용, 커밋 불필요)
+prompt_test/.genai_cache/

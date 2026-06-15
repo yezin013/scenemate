@@ -10,13 +10,20 @@
 실행:  prompt_test 폴더에서  python validation_agent.py        (전체 페르소나)
        빠른 테스트는        python validation_agent.py 1     (앞 1개만 → 한도 절약)
 """
-import os, re, json, time, sys, nbformat
+import os, re, json, time, sys, hashlib, nbformat
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
 load_dotenv()
 client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
+
+# 응답 캐시 — 픽스처(고정 입력) 검증 시 같은 입력은 첫 1회만 실제 호출, 이후 파일에서 읽음.
+#   켜기   : 환경변수 GENAI_CACHE=1  (judge_check/fixer_check가 자동 설정)
+#   끄기   : 변수 미설정 (validation_agent.py 직접 실행=생성 품질 검증 ②는 항상 새 응답)
+#   새로고침: prompt_test/.genai_cache 폴더 삭제
+_CACHE_ON  = os.environ.get("GENAI_CACHE") == "1"
+_CACHE_DIR = ".genai_cache"
 
 # 검사/교정 모델은 상수로 분리 → 원하면 더 센 모델(gemini-2.5-flash)이나 다른 LLM으로 교체 가능.
 # (교차검증을 원하면 JUDGE를 Gemini가 아닌 다른 모델로 두는 게 이상적이지만, 지금은 무료·셋업 기준 Gemini.)
@@ -53,17 +60,33 @@ def _parse_json(text):
         return json.JSONDecoder().raw_decode(s[i:])[0]  # 첫 JSON만, 뒤 잡음 무시
 
 
+def _cache_path(model, contents, system, temperature):
+    """입력(모델·시스템·프롬프트·온도)으로 캐시 파일 경로 결정. 입력이 같으면 경로도 같다."""
+    raw = json.dumps([model, system, contents, temperature], ensure_ascii=False, default=str)
+    return os.path.join(_CACHE_DIR, hashlib.sha256(raw.encode("utf-8")).hexdigest() + ".json")
+
+
 def _gen_json(model, contents, system=None, temperature=0.9, tries=5):
-    """JSON 응답 생성 공통 래퍼 — 429(무료 한도)는 안내된 시간만큼 대기 후 재시도."""
+    """JSON 응답 생성 공통 래퍼 — 429(무료 한도)는 안내된 시간만큼 대기 후 재시도.
+    GENAI_CACHE=1이면 동일 입력은 파일 캐시에서 읽어 호출 0회(픽스처 검증용)."""
     cfg = types.GenerateContentConfig(
         system_instruction=system,
         response_mime_type="application/json",
         temperature=temperature,
     )
+    path = _cache_path(model, contents, system, temperature) if _CACHE_ON else None
+    if path and os.path.exists(path):                      # 캐시 적중 → 호출 없이 즉시 반환
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
     for _ in range(tries):
         try:
             resp = client.models.generate_content(model=model, contents=contents, config=cfg)
-            return _parse_json(resp.text)
+            data = _parse_json(resp.text)
+            if path:                                       # 캐시 켜짐 → 응답 저장(다음부터 0콜)
+                os.makedirs(_CACHE_DIR, exist_ok=True)
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+            return data
         except Exception as e:
             msg = str(e)
             if "429" in msg or "RESOURCE_EXHAUSTED" in msg:
