@@ -1,56 +1,143 @@
 # SceneMate (씬메이트)
 
-AI 오디션 독백 대사 매칭 서비스. 사진·자기소개·목소리 세 가지로 사용자의 외모·성격·목소리를 분석해, 가장 잘 어울리는 오디션 독백을 **두 가지 방향(외모 기반 / 성격 기반)**으로 창작·추천한다.
+**AI 오디션 독백 대사 매칭 서비스.** 사진과 자기소개 텍스트 두 가지만으로 사용자의 외모·성격을 분석·구조화하고, 가장 잘 어울리는 오디션 독백을 **두 가지 방향(외모 기반 / 성격 기반)** 으로 창작해 추천한다.
 
-> 핵심 원칙: **인프라를 짜기 전에 대사 창작 프롬프트가 "쓸 만한가"부터 검증한다.**
+연극영화과 전공자가 직접 겪은 문제에서 출발한 프로젝트다. 기존엔 오디션 준비생이 수십 편의 희곡·시나리오를 직접 읽으며 자신에게 맞는 독백을 찾아야 했고, 외모·말투와 실제로 잘 어울리는지 객관적으로 판단하기 어려웠다. 외모·성격을 대사와 연결하는 로직을 AI 파이프라인으로 구현한다.
+
+> **대사 DB는 없다.** 저작권 문제를 피하고 완전한 개인화를 위해, 요청이 들어올 때마다 AI가 그 사람에게 맞는 대사를 새로 창작한다. 창작된 결과물만 아카이브에 저장된다.
+
+## 핵심 원칙
+
+- **인프라 한 줄 짜기 전에, 대사 창작 프롬프트가 "쓸 만한가"부터 검증한다.** 여기서 통과 못 하면 나머지를 다 만들어도 의미가 없다.
+- MVP(대사 추천 + 아카이브)를 완성한 뒤 v2, v3 순서로 확장한다.
+
+## 두 트랙 대사 추천
+
+같은 사람이라도 외모의 첫인상과 실제 내면·성격은 다를 수 있다. 두 가지를 분리해 각각에 맞는 독백을 창작한다.
+
+| 트랙 | 분석 기반 | 대사 방향 | 활용 상황 |
+|---|---|---|---|
+| **A — 외모 기반** | Vision AI 외모 키워드 | 첫인상에 충실한 대사 | 외모를 살리고 싶을 때 |
+| **B — 성격 기반** | 자기소개 텍스트 구조화 | 내면·성격에 충실한 대사 | 반전 매력을 보여줄 때 |
+
+> 예: 외모는 차갑고 도시적이지만 말투는 사랑스럽고 애교 있는 경우 → 트랙 A는 차갑고 강렬한 도시적 독백, 트랙 B는 따뜻하고 사랑스러운 독백을 각각 창작.
 
 ## 현재 진행 상황
 
-- ✅ **STEP 0 — 프롬프트 검증** (`step0_prompt_validation/`)
-  대사 창작 프롬프트를 Jupyter 노트북으로 검증 중. mock 텍스트 입력이라 Gemini 무료 티어로 안전.
-- ⬜ MVP (① 대사 추천 + ② 아카이브) — `backend/`, `frontend/` (예정)
+- ✅ **STEP 0 — 프롬프트 검증** (`prompt_test/`)
+  대사 창작 프롬프트를 노트북으로 검증. 단순 생성을 넘어 **자가교정·심판(judge) 파이프라인**까지 구축(judge 채점 → 결함 교정 → 재생성). mock 텍스트 입력이라 Gemini 무료 티어로 안전.
+- 🟡 **MVP 백엔드** (`backend/`) — FastAPI 동작. 대사 생성(`/generate`, `/generate-from-photo`), 아카이브(`/scripts`), Supabase(PostgreSQL) 연동 완료.
+- 🟡 **MVP 프론트엔드** (`frontend/`) — React + Vite. 사진/자기소개 입력 → 백엔드 호출 → 두 트랙 결과 표시까지 연결됨.
 
 ## 폴더 구조
 
 ```
 scenemate/
-├─ prompt_test/   # STEP 0 프롬프트 검증
-│  ├─ notebook.ipynb     # 메인 검증 노트북
-│  ├─ build.py           # 노트북 빌더(재생성용)
-│  ├─ run.py             # 전체 페르소나 일괄 실행 + 결과 저장
-│  ├─ result.md          # 생성 결과 리포트
-│  └─ .env.example       # 환경변수 예시 (.env 는 깃 제외)
-├─ backend/    # (예정) FastAPI + PostgreSQL/pgvector + Redis
-└─ frontend/   # (예정) React + Tailwind
+├─ prompt_test/             # STEP 0 프롬프트 검증
+│  ├─ notebook.ipynb            # 메인 검증 노트북
+│  ├─ build.py                  # 노트북 빌더(재생성용)
+│  ├─ run.py                    # 전체 페르소나 일괄 실행 + 결과 저장
+│  ├─ judge_check.py            # 생성 대사 채점(judge)
+│  ├─ validation_agent.py       # 자가교정 에이전트(채점→교정→재생성)
+│  ├─ fixer_check.py            # 클리셰 등 케이스 교정 테스트
+│  ├─ vision_test.py            # 사진→키워드 추출(Vision) 검증
+│  ├─ result.md / *_report.md   # 생성·검증 결과 리포트
+│  └─ .env.example              # 환경변수 예시 (.env 는 깃 제외)
+├─ backend/                 # FastAPI 백엔드
+│  ├─ main.py                   # API 진입점(생성·아카이브·헬스체크)
+│  ├─ generator.py              # 대사 2트랙 생성(11개 작법 규칙 프롬프트)
+│  ├─ vision.py                 # 사진 → 외모 키워드 추출(2단계 정책 우회)
+│  ├─ db.py / models.py / schemas.py / init_db.py
+│  └─ .env.example              # DATABASE_URL, GOOGLE_API_KEY 예시
+└─ frontend/                # React + Vite 프론트엔드
+   ├─ src/App.jsx               # 입력 폼 + 결과 화면
+   └─ .env.example              # VITE_API_URL 예시
 ```
 
-## 다른 컴퓨터에서 클론 후 셋업
+## 셋업 & 실행
 
 ```bash
 git clone https://github.com/yezin013/scenemate.git
 cd scenemate
+```
 
-# 1) 가상환경 (conda 예시)
+### STEP 0 — 프롬프트 검증
+
+```bash
+# 가상환경 (conda 예시)
 conda create -n scenemate python=3.12 -y
 conda activate scenemate
-
-# 2) 패키지 설치
 pip install -r requirements.txt
 
-# 3) API 키 설정 (.env 는 깃에 없으므로 직접 생성)
-#    prompt_test/.env.example 를 .env 로 복사 후 본인 키 입력
-#    GOOGLE_API_KEY=...
-
-# 4) STEP 0 실행
+# API 키 설정: prompt_test/.env.example → .env 로 복사 후 GOOGLE_API_KEY 입력
 cd prompt_test
-jupyter lab notebook.ipynb
+python run.py          # 또는: jupyter lab notebook.ipynb
 ```
+
+### 백엔드 (FastAPI)
+
+```bash
+cd backend
+pip install -r requirements.txt
+
+# .env.example → .env 로 복사 후 값 입력
+#   GOOGLE_API_KEY=...                          (Gemini)
+#   DATABASE_URL=postgresql://...               (Supabase Session pooler 연결 문자열)
+
+uvicorn main:app --reload      # 기본 http://localhost:8000
+```
+
+주요 엔드포인트: `GET /health`, `GET /health/db`, `POST /generate`(텍스트), `POST /generate-from-photo`(사진), `GET·POST /scripts`(아카이브).
+
+### 프론트엔드 (React + Vite)
+
+```bash
+cd frontend
+npm install
+
+# (선택) 백엔드를 8000 외 포트로 띄운다면: .env.example → .env 복사 후 VITE_API_URL 수정
+npm run dev          # 기본 http://localhost:5173
+```
+
+## 입력 분석 구조
+
+| 입력 | 방식 | 분석 방법 | 분석 결과 |
+|---|---|---|---|
+| 사진 | 파일 업로드 | Vision AI(Gemini) **2단계 구조** | 외모·인상 키워드 추출 |
+| 자기소개 | 자유 텍스트 | LLM 구조화 | 성격·말투 분석 |
+
+**Vision AI 2단계 정책 우회** — Vision에 "이 사람은 차갑다"처럼 인물을 평가하도록 직접 요청하면 정책상 거부될 수 있다. 이를 우회하기 위해:
+1. 사진 → "시각적 특징 키워드만 객관적으로 묘사"(헤어·표정·전체 인상) 추출
+2. 키워드 텍스트 → 대사 톤 결정 → 대사 창작
+
+> fallback: 거부 시 사용자가 외모 키워드를 직접 입력하는 방식으로 전환.
+
+## 대사 창작 품질 기준
+
+대사 품질이 서비스 성패를 좌우한다. 단순 생성에 그치지 않고 **자가교정·심판(judge) 파이프라인**으로 품질을 보장한다. 생성된 대사를 별도 LLM 심판이 채점해, 트랙 부적합·말투 비일관·클리셰 등 결함이 발견되면 자동 재생성한다. 회상 클리셰 등 특정 패턴은 fixer 모듈이 별도 교정한다.
+
+판정 기준: ① 트랙 분리(두 트랙이 실제로 다른 방향인가) ② 적정 길이(1~2분 분량) ③ 상충 입력 처리(차가운 외모 + 애교 말투를 두 트랙으로 분리) ④ 일관성(같은 입력 반복 시 일관된 결과). 세부 작법은 `generator.py`의 11개 작법 규칙(호칭·존댓말 일관성, 클리셰 금지, 구어체, 지문 괄호, 과잉 감정 지양 등)으로 강제한다.
 
 ## 기술 스택
 
-Vision AI(Gemini) · STT(Whisper) · FastAPI · PostgreSQL + pgvector · Redis · React · WebSocket
+- **현재 사용**: Gemini(`gemini-2.5-flash-lite`, Vision + 대사 생성) · FastAPI · SQLAlchemy · PostgreSQL(Supabase) · React 19 · Vite
+- **계획**: pgvector(대사 벡터화 → 유사도 추천) · Redis(API 비용 캐싱 + WebSocket pub/sub) · WebSocket(시뮬레이터 실시간 스트리밍) · STT(faster-whisper/Whisper, 음성 → 말투 분석) · Recharts(성장 그래프) · Tailwind CSS · 배포(Railway / Vercel)
+
+> 모델은 개발/검증 단계에서 무료 한도가 넉넉한 `gemini-2.5-flash-lite` 사용. 최종 품질은 `gemini-2.5-flash`로 전환 예정. 배포 전 GPT-4o Vision으로 품질 비교 검증.
+
+## 개발 로드맵
+
+| 단계 | 내용 | 비고 |
+|---|---|---|
+| **STEP 0** | 프롬프트 검증 — 대사 창작 품질 확인. 안 되면 접근 방식 재검토 | ✅ 진행 (최대 2주) |
+| **MVP** | ① AI 맞춤 대사 추천 + ② 나만의 아카이브(저장·피드백 기록·임베딩 유사도 추천·성장 그래프) | 🟡 진행 (8~12주) |
+| **v2** | 오디션 시뮬레이터 — 유형별 AI 면접관 페르소나 + 난이도 조절 + WebSocket | MVP 안정화 후 |
+| **v3** | 대사 분석 공부 — 사용자가 먼저 분석, 막힐 때 힌트 + AI 분석 비교(서브텍스트·행동 동사·감정선 등) | v2 이후 |
+
+> 시간 박스 원칙(1인 개발 + 학업 병행): STEP 0이 늘어지면 프로젝트가 사망하므로 각 단계 종료 시점을 명확히 정의한다. MVP(대사 추천 + 아카이브)만으로도 완결된 서비스이며, v2 이후는 확장이다.
 
 ## 주의
 
-- **`.env`(API 키)는 절대 커밋하지 않는다.** (`.gitignore`로 제외됨)
-- 실제 사용자 얼굴·음성을 다루는 MVP 단계부터는 Gemini 무료 티어 대신 유료 티어(데이터 미사용 보장)로 전환한다.
+- **`.env`(API 키·DB 비밀번호)는 절대 커밋하지 않는다.** (`.gitignore`로 제외됨)
+- **민감정보(얼굴)**: 한국 PIPA상 얼굴은 생체정보. 입력 파일은 분석 후 즉시 폐기하고 창작 결과물만 DB에 저장한다. 배포 시 동의·처리방침·파기 정책 필요.
+- 실제 사용자 사진을 다루는 MVP 단계부터는 Gemini 무료 티어 대신 유료 티어(데이터 미사용 보장)로 전환한다. (무료 티어는 입력 데이터가 모델 개선에 사용될 수 있음)
