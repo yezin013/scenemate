@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
-// 백엔드 주소 — uvicorn 실행 포트와 맞춰야 함. (백엔드를 8000에서 띄우면 8000으로 변경)
-const API = 'http://localhost:8001'
+// 백엔드 주소 — .env(VITE_API_URL)로 덮어쓸 수 있음. 기본은 uvicorn 기본 포트(8000).
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 export default function App() {
   const [photo, setPhoto] = useState(null)
@@ -43,7 +43,7 @@ export default function App() {
       <header className="hero">
         <span className="kicker">AI 오디션 독백 매칭</span>
         <h1 className="wordmark">SceneMate</h1>
-        <p className="tagline">사진 · 자기소개 · 목소리, 세 가지로<br />나에게 꼭 맞는 독백 대사를 두 방향으로.</p>
+        <p className="tagline">사진 · 자기소개, 두 가지로<br />나에게 꼭 맞는 독백 대사를 두 방향으로.</p>
       </header>
 
       <form onSubmit={handleSubmit} className="panel form">
