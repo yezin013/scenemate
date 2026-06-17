@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1360" font-family="'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#555"/>
+    </marker>
+  </defs>
+
+  <style>
+    .lbl   { fill:#444; font-size:12px; text-anchor:middle; paint-order:stroke; stroke:#fff; stroke-width:3px; stroke-linejoin:round; }
+    .nt    { font-weight:700; text-anchor:middle; }
+    .ns    { text-anchor:middle; font-size:11px; }
+    .ctitle{ font-size:13px; font-weight:700; }
+    .edge  { stroke:#555; stroke-width:1.6; fill:none; }
+  </style>
+
+  <!-- 제목 -->
+  <text x="540" y="40" text-anchor="middle" font-size="24" font-weight="700" fill="#222">SceneMate 목표 아키텍처 (수정본)</text>
+  <text x="540" y="64" text-anchor="middle" font-size="13" fill="#888">사진·자기소개 → AI 분석 → 2트랙 대사 생성 → 저장·조회</text>
+
+  <!-- ===================== 컨테이너 ===================== -->
+  <!-- 입력 -->
+  <rect x="290" y="84" width="500" height="110" rx="12" fill="#EEF0FB" stroke="#9aa0e8"/>
+  <text x="300" y="104" class="ctitle" fill="#3a3f8a">🖥  입력 레이어</text>
+  <!-- AI 분석 -->
+  <rect x="70" y="236" width="760" height="150" rx="12" fill="#F3EEFC" stroke="#c9b8ec"/>
+  <text x="80" y="256" class="ctitle" fill="#5a3f96">🤖  AI 분석 레이어</text>
+  <!-- 캐시 -->
+  <rect x="860" y="236" width="170" height="150" rx="12" fill="#E9FBF6" stroke="#8fe0cd"/>
+  <text x="870" y="256" class="ctitle" fill="#108a72">⚡ 캐시(보조)</text>
+  <!-- 대사 생성 -->
+  <rect x="250" y="410" width="620" height="370" rx="12" fill="#FCF3E9" stroke="#ecc99a"/>
+  <text x="260" y="430" class="ctitle" fill="#a5681a">✍ 대사 생성</text>
+  <!-- 저장 -->
+  <rect x="560" y="830" width="420" height="150" rx="12" fill="#FBEAEE" stroke="#e6a7b7"/>
+  <text x="570" y="850" class="ctitle" fill="#a23a57">💾 저장 레이어</text>
+  <!-- 프론트엔드 -->
+  <rect x="250" y="1040" width="500" height="270" rx="12" fill="#E7F6EA" stroke="#9cd3a8"/>
+  <text x="260" y="1060" class="ctitle" fill="#2c7a40">🎭 프론트엔드 레이어</text>
+
+  <!-- ===================== 엣지 (노드 뒤에 그려 화살표가 박스 경계서 끝나게) ===================== -->
+  <!-- 입력 → 분석 -->
+  <path class="edge" d="M382,172 L210,268" marker-end="url(#arrow)"/>
+  <path class="edge" d="M540,172 L440,268" marker-end="url(#arrow)"/>
+  <path class="edge" d="M698,172 L668,268" marker-end="url(#arrow)"/>
+  <!-- STT → 자기소개 텍스트 (말투) -->
+  <path class="edge" d="M560,308 L544,308" marker-end="url(#arrow)"/>
+  <!-- 분석 → Generator -->
+  <path class="edge" d="M205,344 L455,448" marker-end="url(#arrow)"/>
+  <path class="edge" d="M435,344 L545,442" marker-end="url(#arrow)"/>
+  <!-- Redis → Generator (hit/miss) -->
+  <path class="edge" d="M945,356 C900,430 780,440 712,458" marker-end="url(#arrow)"/>
+  <!-- Generator → Judge -->
+  <path class="edge" d="M560,511 L560,557" marker-end="url(#arrow)"/>
+  <!-- Judge → Generator (자가 교정 루프) -->
+  <path class="edge" d="M712,580 C770,560 770,500 712,478" marker-end="url(#arrow)"/>
+  <!-- Judge → Track A / B -->
+  <path class="edge" d="M500,626 L430,682" marker-end="url(#arrow)"/>
+  <path class="edge" d="M620,626 L690,682" marker-end="url(#arrow)"/>
+  <!-- Track → DB -->
+  <path class="edge" d="M430,755 C460,810 600,830 690,865" marker-end="url(#arrow)"/>
+  <path class="edge" d="M705,755 L780,865" marker-end="url(#arrow)"/>
+  <!-- DB → Frontend -->
+  <path class="edge" d="M760,964 C720,1010 640,1040 600,1077" marker-end="url(#arrow)"/>
+  <!-- React → Recharts -->
+  <path class="edge" d="M500,1146 L500,1187" marker-end="url(#arrow)"/>
+  <!-- Frontend → 백엔드 요청 (좌측 우회) -->
+  <path class="edge" d="M330,1113 L40,1113 L40,478 L407,478" marker-end="url(#arrow)"/>
+
+  <!-- ===================== 엣지 라벨 ===================== -->
+  <text class="lbl" x="300" y="214">2단계 정책 우회</text>
+  <text class="lbl" x="503" y="214">텍스트 분석</text>
+  <text class="lbl" x="708" y="214">선택</text>
+  <text class="lbl" x="552" y="296">말투</text>
+  <text class="lbl" x="300" y="392">외모 키워드</text>
+  <text class="lbl" x="520" y="392">성격·내면</text>
+  <text class="lbl" x="845" y="404">캐시 hit/miss</text>
+  <text class="lbl" x="560" y="540">규칙 기반 생성</text>
+  <text class="lbl" x="792" y="528">실패 시 재생성</text>
+  <text class="lbl" x="430" y="660">통과</text>
+  <text class="lbl" x="690" y="660">통과</text>
+  <text class="lbl" x="520" y="806">저장</text>
+  <text class="lbl" x="775" y="806">저장</text>
+  <text class="lbl" x="690" y="1018">Archive · 피드백/벡터검색(예정)</text>
+  <text class="lbl" x="540" y="1170">시각화</text>
+  <text class="lbl" x="210" y="470">요청 (HTTP · WS 예정)</text>
+
+  <!-- ===================== 노드 ===================== -->
+  <!-- 입력 -->
+  <g>
+    <rect x="308" y="118" width="148" height="54" rx="9" fill="#E2E6FA" stroke="#8b93e0"/>
+    <text class="nt" x="382" y="150" font-size="13" fill="#2a2f6b">사진 업로드</text>
+    <rect x="466" y="118" width="148" height="54" rx="9" fill="#E2E6FA" stroke="#8b93e0"/>
+    <text class="nt" x="540" y="150" font-size="13" fill="#2a2f6b">자기소개 텍스트</text>
+    <rect x="624" y="118" width="148" height="54" rx="9" fill="#E2E6FA" stroke="#8b93e0"/>
+    <text class="nt" x="698" y="143" font-size="13" fill="#2a2f6b">음성 입력</text>
+    <text class="ns" x="698" y="160" fill="#6a6f9a">(선택 · 예정)</text>
+  </g>
+
+  <!-- AI 분석 -->
+  <g>
+    <rect x="100" y="272" width="210" height="72" rx="9" fill="#ECE3FB" stroke="#b29ce4"/>
+    <text class="nt" x="205" y="304" font-size="13" fill="#46307a">Vision AI · Gemini</text>
+    <text class="ns" x="205" y="324" fill="#6b5598">2단계 우회 → 외모 키워드</text>
+    <rect x="330" y="272" width="210" height="72" rx="9" fill="#ECE3FB" stroke="#b29ce4"/>
+    <text class="nt" x="435" y="304" font-size="13" fill="#46307a">자기소개 텍스트</text>
+    <text class="ns" x="435" y="324" fill="#6b5598">성격·내면 (원문 전달)</text>
+    <rect x="560" y="272" width="210" height="72" rx="9" fill="#ECE3FB" stroke="#b29ce4"/>
+    <text class="nt" x="665" y="304" font-size="13" fill="#46307a">STT · Whisper</text>
+    <text class="ns" x="665" y="324" fill="#6b5598">음성 → 텍스트 (예정)</text>
+  </g>
+
+  <!-- 캐시 -->
+  <g>
+    <rect x="880" y="290" width="130" height="66" rx="9" fill="#D6FBF1" stroke="#46c9ab"/>
+    <text class="nt" x="945" y="320" font-size="13" fill="#0f6b58">Redis</text>
+    <text class="ns" x="945" y="338" fill="#2c8a76">비용 최적화 (예정)</text>
+  </g>
+
+  <!-- 대사 생성 -->
+  <g>
+    <rect x="410" y="445" width="300" height="66" rx="9" fill="#FDEAD3" stroke="#e3a857"/>
+    <text class="nt" x="560" y="475" font-size="13" fill="#7a4d12">Generator</text>
+    <text class="ns" x="560" y="493" fill="#9a6a20">11 작법 규칙 프롬프트</text>
+    <rect x="410" y="560" width="300" height="66" rx="9" fill="#FDEAD3" stroke="#e3a857"/>
+    <text class="nt" x="560" y="590" font-size="13" fill="#7a4d12">Judge 파이프라인</text>
+    <text class="ns" x="560" y="608" fill="#9a6a20">품질 채점·자가교정 (예정)</text>
+    <rect x="290" y="685" width="250" height="70" rx="9" fill="#FDEAD3" stroke="#e3a857"/>
+    <text class="nt" x="415" y="716" font-size="13" fill="#7a4d12">Track A</text>
+    <text class="ns" x="415" y="734" fill="#9a6a20">외모 기반 독백</text>
+    <rect x="580" y="685" width="250" height="70" rx="9" fill="#FDEAD3" stroke="#e3a857"/>
+    <text class="nt" x="705" y="716" font-size="13" fill="#7a4d12">Track B</text>
+    <text class="ns" x="705" y="734" fill="#9a6a20">성격 기반 독백</text>
+  </g>
+
+  <!-- 저장 (DB 실린더) -->
+  <g>
+    <path d="M620,884 a150,16 0 0 1 300,0 v64 a150,16 0 0 1 -300,0 z" fill="#FBDDE4" stroke="#db8298"/>
+    <ellipse cx="770" cy="884" rx="150" ry="16" fill="#FBDDE4" stroke="#db8298"/>
+    <text class="nt" x="770" y="912" font-size="13" fill="#7a2540">PostgreSQL (Supabase)</text>
+    <text class="ns" x="770" y="930" fill="#9a4560">대사 · JSONB 입력 / 피드백(예정)</text>
+    <text class="ns" x="770" y="946" fill="#9a4560">+ pgvector 유사도 검색 (예정)</text>
+  </g>
+
+  <!-- 프론트엔드 -->
+  <g>
+    <rect x="330" y="1080" width="340" height="66" rx="9" fill="#D8F2DE" stroke="#6bbf7a"/>
+    <text class="nt" x="500" y="1108" font-size="13" fill="#1f5b2e">React (Vite) · 반응형 UI</text>
+    <text class="ns" x="500" y="1126" fill="#3a7a4a">현재 CSS · Tailwind (예정)</text>
+    <rect x="360" y="1187" width="280" height="66" rx="9" fill="#D8F2DE" stroke="#6bbf7a"/>
+    <text class="nt" x="500" y="1215" font-size="13" fill="#1f5b2e">Recharts</text>
+    <text class="ns" x="500" y="1233" fill="#3a7a4a">성장 지표 그래프 (예정)</text>
+  </g>
+</svg>
