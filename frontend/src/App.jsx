@@ -101,6 +101,10 @@ export default function App() {
             </label>
             {preview && <img src={preview} alt="미리보기" className="thumb" />}
           </div>
+          <p className="notice">
+            업로드한 사진은 대사 분석에만 사용되며 분석 직후 폐기됩니다.
+            사진 자체는 저장되지 않고, 창작된 대사만 아카이브에 저장돼요.
+          </p>
         </div>
 
         <label className="field">
@@ -137,6 +141,7 @@ export default function App() {
         loading={archiveLoading}
         error={archiveError}
         onOpen={loadArchive}
+        onRefresh={loadArchive}
       />
 
       <footer className="foot">SceneMate · AI 오디션 독백 매칭</footer>
@@ -185,7 +190,7 @@ function Track({ tone, badge, label, trackKey, data, onSave }) {
 
 const TRACK_LABEL = { appearance: '외모 기반', personality: '성격 기반' }
 
-function Archive({ data, loading, error, onOpen }) {
+function Archive({ data, loading, error, onOpen, onRefresh }) {
   return (
     <section className="archive">
       <div className="archive-head">
@@ -201,19 +206,111 @@ function Archive({ data, loading, error, onOpen }) {
         data.length === 0
           ? <p className="archive-empty">아직 저장한 대사가 없어요. 마음에 드는 트랙을 저장해 보세요.</p>
           : <ul className="archive-list">
-            {data.map((s) => (
-              <li key={s.id} className={`archive-item track-${s.track === 'personality' ? 'b' : 'a'}`}>
-                <div className="archive-item-head">
-                  <span className="archive-track">{TRACK_LABEL[s.track] ?? s.track ?? '대사'}</span>
-                  {s.title && <span className="archive-item-title">{s.title}</span>}
-                  <span className="archive-date">{(s.created_at ?? '').slice(0, 10)}</span>
-                </div>
-                {s.setup && <p className="archive-setup">{s.setup}</p>}
-                <p className="archive-script">{s.script_text}</p>
-              </li>
-            ))}
+            {data.map((s) => <ArchiveItem key={s.id} s={s} onRefresh={onRefresh} />)}
           </ul>
       )}
     </section>
+  )
+}
+
+function ArchiveItem({ s, onRefresh }) {
+  return (
+    <li className={`archive-item track-${s.track === 'personality' ? 'b' : 'a'}`}>
+      <div className="archive-item-head">
+        <span className="archive-track">{TRACK_LABEL[s.track] ?? s.track ?? '대사'}</span>
+        {s.title && <span className="archive-item-title">{s.title}</span>}
+        <span className="archive-date">{(s.created_at ?? '').slice(0, 10)}</span>
+      </div>
+      {s.setup && <p className="archive-setup">{s.setup}</p>}
+      <p className="archive-script">{s.script_text}</p>
+      <FeedbackSection script={s} onRefresh={onRefresh} />
+    </li>
+  )
+}
+
+// 오디션 결과 → 색상 클래스 (합격/불합격/대기)
+const RESULT_CLASS = { 합격: 'pass', 불합격: 'fail', 대기: 'wait' }
+
+function FeedbackSection({ script, onRefresh }) {
+  const [open, setOpen] = useState(false)
+  const [date, setDate] = useState('')
+  const [venue, setVenue] = useState('')
+  const [result, setResult] = useState('')
+  const [memo, setMemo] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  const items = script.feedback ?? []
+
+  async function submit(e) {
+    e.preventDefault()
+    setErr('')
+    if (!date && !venue && !result && !memo.trim()) {
+      setErr('내용을 한 가지 이상 입력해 주세요.'); return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch(`${API}/scripts/${script.id}/feedback`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: date || null, venue: venue || null,
+          result: result || null, memo: memo.trim() || null,
+        }),
+      })
+      if (!res.ok) throw new Error(`저장 실패 ${res.status}`)
+      setDate(''); setVenue(''); setResult(''); setMemo(''); setOpen(false)
+      onRefresh?.()
+    } catch {
+      setErr('피드백 저장에 실패했어요.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fb">
+      {items.length > 0 && (
+        <ul className="fb-list">
+          {items.map((f, i) => (
+            <li key={i} className="fb-item">
+              <div className="fb-meta">
+                {f.result && <span className={`fb-result fb-${RESULT_CLASS[f.result] ?? 'wait'}`}>{f.result}</span>}
+                {f.date && <span className="fb-date">{f.date}</span>}
+                {f.venue && <span className="fb-venue">{f.venue}</span>}
+              </div>
+              {f.memo && <p className="fb-memo">{f.memo}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {open ? (
+        <form className="fb-form" onSubmit={submit}>
+          <div className="fb-row">
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <select value={result} onChange={(e) => setResult(e.target.value)}>
+              <option value="">결과 선택</option>
+              <option value="합격">합격</option>
+              <option value="불합격">불합격</option>
+              <option value="대기">대기</option>
+            </select>
+          </div>
+          <input type="text" placeholder="작품·오디션명 (선택)" value={venue}
+            onChange={(e) => setVenue(e.target.value)} />
+          <textarea rows={2} placeholder="메모 — 피드백·소감 등 (선택)" value={memo}
+            onChange={(e) => setMemo(e.target.value)} />
+          {err && <span className="save-err">{err}</span>}
+          <div className="fb-actions">
+            <button type="submit" className="save-btn" disabled={saving}>
+              {saving ? '저장 중…' : '피드백 저장'}
+            </button>
+            <button type="button" className="fb-cancel" onClick={() => { setOpen(false); setErr('') }}>취소</button>
+          </div>
+        </form>
+      ) : (
+        <button type="button" className="fb-add" onClick={() => setOpen(true)}>+ 피드백 추가</button>
+      )}
+    </div>
   )
 }

@@ -1,4 +1,5 @@
 """SceneMate API — FastAPI 진입점."""
+from datetime import datetime, timezone
 from typing import List
 
 from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Form
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from db import get_db
 import models
-from schemas import ScriptCreate, ScriptOut, GenerateRequest, GenerateResponse
+from schemas import ScriptCreate, ScriptOut, GenerateRequest, GenerateResponse, FeedbackItem
 from generator import generate_dialogues
 from vision import extract_keywords
 
@@ -118,4 +119,23 @@ def get_script(script_id: int, db: Session = Depends(get_db)):
     obj = db.get(models.Script, script_id)
     if obj is None:
         raise HTTPException(status_code=404, detail="script not found")
+    return obj
+
+
+@app.patch("/scripts/{script_id}/feedback", response_model=ScriptOut)
+def add_feedback(script_id: int, item: FeedbackItem, db: Session = Depends(get_db)):
+    """대사에 오디션 피드백 한 건을 누적(append)한다."""
+    obj = db.get(models.Script, script_id)
+    if obj is None:
+        raise HTTPException(status_code=404, detail="script not found")
+
+    entry = item.model_dump(exclude={"created_at"})        # 클라이언트가 보낸 created_at은 버림
+    if not any(v for v in entry.values()):                 # 전부 빈 값이면 거부
+        raise HTTPException(status_code=400, detail="empty feedback")
+    entry["created_at"] = datetime.now(timezone.utc).isoformat()
+
+    # JSONB 컬럼은 새 리스트로 재할당해야 SQLAlchemy가 변경을 감지한다.
+    obj.feedback = list(obj.feedback or []) + [entry]
+    db.commit()
+    db.refresh(obj)
     return obj

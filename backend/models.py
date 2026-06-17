@@ -19,3 +19,4 @@ class Script(Base):
     fit_reason = Column(Text)
     voice_style = Column(Text)
     inputs = Column(JSONB)                                 # {외모키워드, 자기소개, 말투}
+    feedback = Column(JSONB)                               # 오디션 피드백 누적 배열 [{date, venue, result, memo, created_at}]

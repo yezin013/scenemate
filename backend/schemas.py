@@ -26,6 +26,15 @@ class GenerateResponse(BaseModel):
     saved_ids: list[int] | None = None       # save=True일 때 저장된 행 id
 
 
+class FeedbackItem(BaseModel):
+    """오디션 피드백 한 건. (PATCH 입력 겸 응답 항목)"""
+    date: str | None = None        # 오디션 날짜 (YYYY-MM-DD)
+    venue: str | None = None       # 작품·오디션명/장소
+    result: str | None = None      # 합격 / 불합격 / 대기 등
+    memo: str | None = None        # 자유 메모
+    created_at: str | None = None  # 서버 기록 시각 (응답 전용 — 입력값은 무시)
+
+
 class ScriptCreate(BaseModel):
     """대사 저장 요청 형식."""
     script_text: str
@@ -50,5 +59,6 @@ class ScriptOut(BaseModel):
     fit_reason: str | None = None
     voice_style: str | None = None
     inputs: dict | None = None
+    feedback: list[FeedbackItem] | None = None   # 누적 오디션 피드백
 
     model_config = {"from_attributes": True}  # SQLAlchemy 객체 → Pydantic 변환 허용
