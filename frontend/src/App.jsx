@@ -1,19 +1,106 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from './supabase'
 
-// 백엔드 주소 — .env(VITE_API_URL)로 덮어쓸 수 있음. 기본은 uvicorn 기본 포트(8000).
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
+// ── 최상위: 세션 감지 → Login or Main ────────────────────
 export default function App() {
+  const [session, setSession] = useState(undefined) // undefined=로딩, null=미로그인
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setSession(session)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  if (session === undefined)
+    return <div className="loading"><span className="spinner" />로딩 중…</div>
+  if (!session) return <Login />
+  return <Main token={session.access_token} />
+}
+
+// ── 로그인 / 회원가입 ─────────────────────────────────────
+function Login() {
+  const [mode, setMode] = useState('login')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setError(''); setMessage('')
+    setLoading(true)
+    try {
+      if (mode === 'login') {
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) throw error
+      } else {
+        const { error } = await supabase.auth.signUp({ email, password })
+        if (error) throw error
+        setMessage('확인 이메일을 보냈어요. 메일함을 확인해 주세요.')
+      }
+    } catch (err) {
+      setError(err.message || '오류가 발생했어요.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function toggleMode() {
+    setMode(m => m === 'login' ? 'signup' : 'login')
+    setError(''); setMessage('')
+  }
+
+  return (
+    <div className="page">
+      <header className="hero">
+        <span className="kicker">AI 오디션 독백 매칭</span>
+        <h1 className="wordmark">SceneMate</h1>
+        <p className="tagline">나에게 꼭 맞는 독백 대사를 두 방향으로.</p>
+      </header>
+      <form onSubmit={handleSubmit} className="panel form">
+        <h2 className="field-label" style={{ fontSize: '1rem', marginBottom: '1rem' }}>
+          {mode === 'login' ? '로그인' : '회원가입'}
+        </h2>
+        <label className="field">
+          <span className="field-label">이메일</span>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+        </label>
+        <label className="field">
+          <span className="field-label">비밀번호</span>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+            required minLength={6} />
+        </label>
+        {error && <p className="error">{error}</p>}
+        {message && <p className="notice">{message}</p>}
+        <button className="cta" disabled={loading}>
+          {loading ? '처리 중…' : mode === 'login' ? '로그인' : '회원가입'}
+        </button>
+        <button type="button" className="fb-cancel" style={{ marginTop: '0.5rem' }} onClick={toggleMode}>
+          {mode === 'login' ? '계정이 없나요? 회원가입' : '이미 계정이 있나요? 로그인'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+// ── 메인 앱 ───────────────────────────────────────────────
+function Main({ token }) {
+  const auth = { Authorization: `Bearer ${token}` }
+
   const [photo, setPhoto] = useState(null)
   const [preview, setPreview] = useState('')
   const [selfIntro, setSelfIntro] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
-  const [genId, setGenId] = useState(0)   // 생성마다 증가 → 트랙 저장상태 초기화용
+  const [genId, setGenId] = useState(0)
 
-  // 아카이브
-  const [archive, setArchive] = useState(null)   // null=미조회, []=조회됨
+  const [archive, setArchive] = useState(null)
   const [archiveLoading, setArchiveLoading] = useState(false)
   const [archiveError, setArchiveError] = useState('')
 
@@ -25,8 +112,7 @@ export default function App() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    setError('')
-    setResult(null)
+    setError(''); setResult(null)
     if (!photo) { setError('사진을 선택해 주세요.'); return }
     setLoading(true)
     try {
@@ -34,10 +120,10 @@ export default function App() {
       fd.append('photo', photo)
       fd.append('self_intro', selfIntro)
       fd.append('save', 'false')
-      const res = await fetch(`${API}/generate-from-photo`, { method: 'POST', body: fd })
+      const res = await fetch(`${API}/generate-from-photo`, { method: 'POST', headers: auth, body: fd })
       if (!res.ok) throw new Error(`서버 오류 ${res.status}`)
       setResult(await res.json())
-      setGenId((n) => n + 1)
+      setGenId(n => n + 1)
     } catch (err) {
       setError(err.message || '요청에 실패했어요. 백엔드가 켜져 있는지 확인해 주세요.')
     } finally {
@@ -45,35 +131,29 @@ export default function App() {
     }
   }
 
-  // 트랙 한 개를 아카이브에 저장 (POST /scripts). 백엔드 자동저장과 동일한 컬럼 매핑.
   async function saveTrack(data, trackKey) {
     const res = await fetch(`${API}/scripts`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...auth },
       body: JSON.stringify({
         script_text: data.script,
         source: 'ai',
-        track: trackKey,            // 'appearance' | 'personality'
+        track: trackKey,
         title: data.title,
-        setup: data.situation,      // 상황 → setup
-        fit_reason: data.objective, // 목적 → fit_reason
-        inputs: {
-          appearance_keywords: result?.appearance_keywords ?? null,
-          self_intro: selfIntro,
-        },
+        setup: data.situation,
+        fit_reason: data.objective,
+        inputs: { appearance_keywords: result?.appearance_keywords ?? null, self_intro: selfIntro },
       }),
     })
     if (!res.ok) throw new Error(`저장 실패 ${res.status}`)
-    // 아카이브를 이미 펼쳐 본 상태면 목록 갱신
     if (archive !== null) loadArchive()
     return res.json()
   }
 
   async function loadArchive() {
-    setArchiveLoading(true)
-    setArchiveError('')
+    setArchiveLoading(true); setArchiveError('')
     try {
-      const res = await fetch(`${API}/scripts`)
+      const res = await fetch(`${API}/scripts`, { headers: auth })
       if (!res.ok) throw new Error(`조회 실패 ${res.status}`)
       setArchive(await res.json())
     } catch (err) {
@@ -89,6 +169,11 @@ export default function App() {
         <span className="kicker">AI 오디션 독백 매칭</span>
         <h1 className="wordmark">SceneMate</h1>
         <p className="tagline">사진 · 자기소개, 두 가지로<br />나에게 꼭 맞는 독백 대사를 두 방향으로.</p>
+        <button type="button" className="fb-cancel"
+          style={{ marginTop: '0.75rem', fontSize: '0.8rem' }}
+          onClick={() => supabase.auth.signOut()}>
+          로그아웃
+        </button>
       </header>
 
       <form onSubmit={handleSubmit} className="panel form">
@@ -109,7 +194,7 @@ export default function App() {
 
         <label className="field">
           <span className="field-label">자기소개 <em>성격 · 내면</em></span>
-          <textarea rows={4} value={selfIntro} onChange={(e) => setSelfIntro(e.target.value)}
+          <textarea rows={4} value={selfIntro} onChange={e => setSelfIntro(e.target.value)}
             placeholder="예: 밝고 장난기 많고 에너지가 넘쳐요. 겉은 차분한데 속은 욕심이 많아요." />
         </label>
 
@@ -119,7 +204,6 @@ export default function App() {
       </form>
 
       {error && <p className="error">{error}</p>}
-
       {loading && <div className="loading"><span className="spinner" />무대를 준비하고 있어요…</div>}
 
       {result && (
@@ -137,11 +221,8 @@ export default function App() {
       )}
 
       <Archive
-        data={archive}
-        loading={archiveLoading}
-        error={archiveError}
-        onOpen={loadArchive}
-        onRefresh={loadArchive}
+        data={archive} loading={archiveLoading} error={archiveError}
+        onOpen={loadArchive} onRefresh={loadArchive} auth={auth}
       />
 
       <footer className="foot">SceneMate · AI 오디션 독백 매칭</footer>
@@ -149,22 +230,17 @@ export default function App() {
   )
 }
 
+// ── 트랙 카드 ─────────────────────────────────────────────
 function Track({ tone, badge, label, trackKey, data, onSave }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [err, setErr] = useState('')
 
   async function handleSave() {
-    setSaving(true)
-    setErr('')
-    try {
-      await onSave(data, trackKey)
-      setSaved(true)
-    } catch {
-      setErr('저장에 실패했어요.')
-    } finally {
-      setSaving(false)
-    }
+    setSaving(true); setErr('')
+    try { await onSave(data, trackKey); setSaved(true) }
+    catch { setErr('저장에 실패했어요.') }
+    finally { setSaving(false) }
   }
 
   return (
@@ -188,9 +264,10 @@ function Track({ tone, badge, label, trackKey, data, onSave }) {
   )
 }
 
+// ── 아카이브 ──────────────────────────────────────────────
 const TRACK_LABEL = { appearance: '외모 기반', personality: '성격 기반' }
 
-function Archive({ data, loading, error, onOpen, onRefresh }) {
+function Archive({ data, loading, error, onOpen, onRefresh, auth }) {
   return (
     <section className="archive">
       <div className="archive-head">
@@ -199,21 +276,19 @@ function Archive({ data, loading, error, onOpen, onRefresh }) {
           {loading ? '불러오는 중…' : data === null ? '아카이브 보기' : '새로고침'}
         </button>
       </div>
-
       {error && <p className="error">{error}</p>}
-
       {data !== null && !loading && (
         data.length === 0
           ? <p className="archive-empty">아직 저장한 대사가 없어요. 마음에 드는 트랙을 저장해 보세요.</p>
           : <ul className="archive-list">
-            {data.map((s) => <ArchiveItem key={s.id} s={s} onRefresh={onRefresh} />)}
+            {data.map(s => <ArchiveItem key={s.id} s={s} onRefresh={onRefresh} auth={auth} />)}
           </ul>
       )}
     </section>
   )
 }
 
-function ArchiveItem({ s, onRefresh }) {
+function ArchiveItem({ s, onRefresh, auth }) {
   return (
     <li className={`archive-item track-${s.track === 'personality' ? 'b' : 'a'}`}>
       <div className="archive-item-head">
@@ -223,15 +298,15 @@ function ArchiveItem({ s, onRefresh }) {
       </div>
       {s.setup && <p className="archive-setup">{s.setup}</p>}
       <p className="archive-script">{s.script_text}</p>
-      <FeedbackSection script={s} onRefresh={onRefresh} />
+      <FeedbackSection script={s} onRefresh={onRefresh} auth={auth} />
     </li>
   )
 }
 
-// 오디션 결과 → 색상 클래스 (합격/불합격/대기)
+// ── 오디션 피드백 ─────────────────────────────────────────
 const RESULT_CLASS = { 합격: 'pass', 불합격: 'fail', 대기: 'wait' }
 
-function FeedbackSection({ script, onRefresh }) {
+function FeedbackSection({ script, onRefresh, auth }) {
   const [open, setOpen] = useState(false)
   const [date, setDate] = useState('')
   const [venue, setVenue] = useState('')
@@ -243,8 +318,7 @@ function FeedbackSection({ script, onRefresh }) {
   const items = script.feedback ?? []
 
   async function submit(e) {
-    e.preventDefault()
-    setErr('')
+    e.preventDefault(); setErr('')
     if (!date && !venue && !result && !memo.trim()) {
       setErr('내용을 한 가지 이상 입력해 주세요.'); return
     }
@@ -252,20 +326,14 @@ function FeedbackSection({ script, onRefresh }) {
     try {
       const res = await fetch(`${API}/scripts/${script.id}/feedback`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: date || null, venue: venue || null,
-          result: result || null, memo: memo.trim() || null,
-        }),
+        headers: { 'Content-Type': 'application/json', ...auth },
+        body: JSON.stringify({ date: date || null, venue: venue || null, result: result || null, memo: memo.trim() || null }),
       })
       if (!res.ok) throw new Error(`저장 실패 ${res.status}`)
       setDate(''); setVenue(''); setResult(''); setMemo(''); setOpen(false)
       onRefresh?.()
-    } catch {
-      setErr('피드백 저장에 실패했어요.')
-    } finally {
-      setSaving(false)
-    }
+    } catch { setErr('피드백 저장에 실패했어요.') }
+    finally { setSaving(false) }
   }
 
   return (
@@ -284,12 +352,11 @@ function FeedbackSection({ script, onRefresh }) {
           ))}
         </ul>
       )}
-
       {open ? (
         <form className="fb-form" onSubmit={submit}>
           <div className="fb-row">
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            <select value={result} onChange={(e) => setResult(e.target.value)}>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+            <select value={result} onChange={e => setResult(e.target.value)}>
               <option value="">결과 선택</option>
               <option value="합격">합격</option>
               <option value="불합격">불합격</option>
@@ -297,9 +364,9 @@ function FeedbackSection({ script, onRefresh }) {
             </select>
           </div>
           <input type="text" placeholder="작품·오디션명 (선택)" value={venue}
-            onChange={(e) => setVenue(e.target.value)} />
+            onChange={e => setVenue(e.target.value)} />
           <textarea rows={2} placeholder="메모 — 피드백·소감 등 (선택)" value={memo}
-            onChange={(e) => setMemo(e.target.value)} />
+            onChange={e => setMemo(e.target.value)} />
           {err && <span className="save-err">{err}</span>}
           <div className="fb-actions">
             <button type="submit" className="save-btn" disabled={saving}>

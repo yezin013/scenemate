@@ -1,6 +1,7 @@
 """DB 테이블을 파이썬 객체로 매핑 (SQLAlchemy 모델)."""
 from sqlalchemy import Column, BigInteger, Text, DateTime, func
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
 from db import Base
 
@@ -19,3 +20,4 @@ class Script(Base):
     fit_reason = Column(Text)
     inputs = Column(JSONB)                                 # {외모키워드, 자기소개, 말투}
     feedback = Column(JSONB)                               # 오디션 피드백 누적 배열 [{date, venue, result, memo, created_at}]
+    user_id = Column(PGUUID(as_uuid=False))               # Supabase Auth 사용자 UUID
