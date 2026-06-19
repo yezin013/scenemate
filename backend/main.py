@@ -11,6 +11,7 @@ from db import get_db
 import models
 from schemas import ScriptCreate, ScriptOut, GenerateRequest, GenerateResponse, FeedbackItem
 from generator import generate_dialogues
+from judge import refine_track
 from vision import extract_keywords
 
 app = FastAPI(title="SceneMate API", version="0.1.0")
@@ -41,6 +42,15 @@ def health_db(db: Session = Depends(get_db)):
     return {"db": "connected", "version": version[:60]}
 
 
+# ── judge+fixer 정제 헬퍼 ────────────────────────────────
+def _refine_result(result: dict, appearance_keywords: str, self_intro: str) -> dict:
+    """생성된 두 트랙을 judge+fixer 파이프라인으로 정제."""
+    for track_key, track_kind in [("track_A_appearance", "A"), ("track_B_personality", "B")]:
+        refined = refine_track(appearance_keywords, self_intro, track_kind, result[track_key])
+        result[track_key] = refined["final"]
+    return result
+
+
 # ── 생성 결과 저장 헬퍼 ───────────────────────────────────
 def _save_tracks(db: Session, result: dict, inputs: dict) -> list[int]:
     objs = []
@@ -65,6 +75,7 @@ def _save_tracks(db: Session, result: dict, inputs: dict) -> list[int]:
 def generate(payload: GenerateRequest, db: Session = Depends(get_db)):
     """입력 2종(외모키워드·자기소개) → 대사 2개."""
     result = generate_dialogues(payload.appearance_keywords, payload.self_intro)
+    result = _refine_result(result, payload.appearance_keywords, payload.self_intro)
     saved_ids = None
     if payload.save:
         inputs = {
@@ -89,6 +100,7 @@ def generate_from_photo(
         raise HTTPException(status_code=400, detail="empty photo")
     keywords = extract_keywords(image_bytes, photo.content_type or "image/jpeg")
     result = generate_dialogues(keywords, self_intro)
+    result = _refine_result(result, keywords, self_intro)
     saved_ids = None
     if save:
         inputs = {"appearance_keywords": keywords, "self_intro": self_intro}
