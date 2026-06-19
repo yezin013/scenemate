@@ -43,7 +43,6 @@ class ScriptCreate(BaseModel):
     title: str | None = None
     setup: str | None = None
     fit_reason: str | None = None
-    voice_style: str | None = None
     inputs: dict | None = None
 
 
@@ -57,7 +56,6 @@ class ScriptOut(BaseModel):
     setup: str | None = None
     script_text: str
     fit_reason: str | None = None
-    voice_style: str | None = None
     inputs: dict | None = None
     feedback: list[FeedbackItem] | None = None   # 누적 오디션 피드백
 
