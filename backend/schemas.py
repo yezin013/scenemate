@@ -65,3 +65,35 @@ class ScriptOut(BaseModel):
 class AdminScriptOut(ScriptOut):
     """어드민 전용 응답 — user_id 포함."""
     user_id: str | None = None
+
+
+# ── 대사 분석 ─────────────────────────────────────────────
+ANALYSIS_LAYER_KEYS = ["subtext", "action_verb", "emotion_arc", "context",
+                       "character_bg", "relationship", "real_goal"]
+
+
+class HintRequest(BaseModel):
+    layer: str
+    draft: str = ""
+
+
+class HintResponse(BaseModel):
+    hint: str
+
+
+class AnalysisLayers(BaseModel):
+    subtext: str = ""
+    action_verb: str = ""
+    emotion_arc: str = ""
+    context: str = ""
+    character_bg: str = ""
+    relationship: str = ""
+    real_goal: str = ""
+
+
+class AnalysisOut(BaseModel):
+    id: int
+    created_at: datetime
+    script_id: int
+    user_analysis: AnalysisLayers
+    ai_analysis: dict

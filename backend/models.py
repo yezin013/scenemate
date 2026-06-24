@@ -6,6 +6,24 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from db import Base
 
 
+class Analysis(Base):
+    """대사 분석 — analysis 테이블."""
+    __tablename__ = "analysis"
+
+    id = Column(BigInteger, primary_key=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    script_id = Column(BigInteger, nullable=False)
+    user_id = Column(PGUUID(as_uuid=False))
+    subtext = Column(Text)
+    action_verb = Column(Text)
+    emotion_arc = Column(Text)
+    context = Column(Text)
+    character_bg = Column(Text)
+    relationship = Column(Text)
+    real_goal = Column(Text)
+    ai_analysis = Column(JSONB)
+
+
 class Script(Base):
     """대사 아카이브 — scripts 테이블."""
     __tablename__ = "scripts"

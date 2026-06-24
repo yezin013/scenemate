@@ -9,12 +9,14 @@ from sqlalchemy.orm import Session
 
 from db import get_db
 import models
-from schemas import ScriptCreate, ScriptOut, GenerateRequest, GenerateResponse, FeedbackItem
+from schemas import (ScriptCreate, ScriptOut, GenerateRequest, GenerateResponse, FeedbackItem,
+                     HintRequest, HintResponse, AnalysisLayers, AnalysisOut, ANALYSIS_LAYER_KEYS)
 from generator import generate_dialogues
 from judge import refine_track
 from vision import extract_keywords
 from auth import get_current_user
 from admin import router as admin_router
+from analyze import get_hint, get_full_analysis
 
 app = FastAPI(title="SceneMate API", version="0.1.0")
 
@@ -160,3 +162,71 @@ def add_feedback(script_id: int, item: FeedbackItem, db: Session = Depends(get_d
     db.commit()
     db.refresh(obj)
     return obj
+
+
+# ── 대사 분석 ─────────────────────────────────────────────
+def _analysis_to_out(row: models.Analysis) -> AnalysisOut:
+    return AnalysisOut(
+        id=row.id,
+        created_at=row.created_at,
+        script_id=row.script_id,
+        user_analysis=AnalysisLayers(**{k: getattr(row, k) or "" for k in ANALYSIS_LAYER_KEYS}),
+        ai_analysis=row.ai_analysis or {},
+    )
+
+
+@app.post("/scripts/{script_id}/analyze", response_model=HintResponse)
+def analyze_hint(script_id: int, payload: HintRequest, db: Session = Depends(get_db),
+                 user_id: str = Depends(get_current_user)):
+    """특정 레이어에 대한 힌트 반환 (저장 없음)."""
+    obj = db.get(models.Script, script_id)
+    if obj is None or obj.user_id != user_id:
+        raise HTTPException(status_code=404, detail="script not found")
+    if payload.layer not in ANALYSIS_LAYER_KEYS:
+        raise HTTPException(status_code=400, detail=f"unknown layer: {payload.layer}")
+    hint = get_hint(obj.script_text, obj.title, obj.setup, payload.layer, payload.draft)
+    return {"hint": hint}
+
+
+@app.get("/scripts/{script_id}/analyze/full", response_model=AnalysisOut)
+def get_analysis(script_id: int, db: Session = Depends(get_db),
+                 user_id: str = Depends(get_current_user)):
+    """저장된 분석 조회."""
+    obj = db.get(models.Script, script_id)
+    if obj is None or obj.user_id != user_id:
+        raise HTTPException(status_code=404, detail="script not found")
+    row = (db.query(models.Analysis)
+             .filter_by(script_id=script_id, user_id=user_id)
+             .first())
+    if row is None:
+        raise HTTPException(status_code=404, detail="analysis not found")
+    return _analysis_to_out(row)
+
+
+@app.post("/scripts/{script_id}/analyze/full", response_model=AnalysisOut)
+def analyze_full(script_id: int, payload: AnalysisLayers, db: Session = Depends(get_db),
+                 user_id: str = Depends(get_current_user)):
+    """사용자 7개 레이어 저장 + AI 전체 분석 생성 → 비교용 응답."""
+    obj = db.get(models.Script, script_id)
+    if obj is None or obj.user_id != user_id:
+        raise HTTPException(status_code=404, detail="script not found")
+
+    ai = get_full_analysis(obj.script_text, obj.title, obj.setup)
+
+    row = (db.query(models.Analysis)
+             .filter_by(script_id=script_id, user_id=user_id)
+             .first())
+    if row:
+        for k, v in payload.model_dump().items():
+            setattr(row, k, v)
+        row.ai_analysis = ai
+    else:
+        row = models.Analysis(
+            script_id=script_id, user_id=user_id,
+            **payload.model_dump(), ai_analysis=ai,
+        )
+        db.add(row)
+
+    db.commit()
+    db.refresh(row)
+    return _analysis_to_out(row)
