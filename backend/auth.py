@@ -1,4 +1,4 @@
-"""Supabase JWT 검증 — Bearer 토큰에서 user_id(UUID) 추출 (RS256 + JWKS)."""
+"""Supabase JWT 검증 — Bearer 토큰에서 user_id(UUID) 추출 (ES256 + JWKS)."""
 import os
 import logging
 import jwt
@@ -18,30 +18,16 @@ _jwks_client = PyJWKClient(_JWKS_URL, cache_keys=True)
 
 
 def get_current_user(creds: HTTPAuthorizationCredentials = Depends(_bearer)) -> str:
-    """Authorization: Bearer <token> → RS256 검증 후 user UUID 반환."""
-    token = creds.credentials
+    """Authorization: Bearer <token> → ES256 검증 후 user UUID 반환."""
     try:
-        header = jwt.get_unverified_header(token)
-        logger.warning("[AUTH] JWT header: alg=%s kid=%s", header.get("alg"), header.get("kid"))
-    except Exception as e:
-        logger.error("[AUTH] header parse failed [%s] %s", type(e).__name__, e)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token")
-
-    try:
-        signing_key = _jwks_client.get_signing_key_from_jwt(token)
-        logger.warning("[AUTH] JWKS key: alg=%s", signing_key.algorithm_name)
-    except Exception as e:
-        logger.error("[AUTH] JWKS lookup failed [%s] %s", type(e).__name__, e)
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token")
-
-    try:
+        signing_key = _jwks_client.get_signing_key_from_jwt(creds.credentials)
         payload = jwt.decode(
-            token,
+            creds.credentials,
             signing_key.key,
             algorithms=["ES256"],
             audience="authenticated",
         )
         return payload["sub"]
     except Exception as e:
-        logger.error("[AUTH] decode failed [%s] %s", type(e).__name__, e)
+        logger.error("JWT auth failed [%s] %s", type(e).__name__, e)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token")
