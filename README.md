@@ -26,8 +26,9 @@
 
 - ✅ **STEP 0 — 프롬프트 검증** (`prompt_test/`)
   대사 창작 프롬프트를 노트북으로 검증. 단순 생성을 넘어 **자가교정·심판(judge) 파이프라인**까지 구축(judge 채점 → 결함 교정 → 재생성). mock 텍스트 입력이라 Gemini 무료 티어로 안전.
-- 🟡 **MVP 백엔드** (`backend/`) — FastAPI 동작. 대사 생성(`/generate`, `/generate-from-photo`), 아카이브(`/scripts`), Supabase(PostgreSQL) 연동 완료.
-- 🟡 **MVP 프론트엔드** (`frontend/`) — React + Vite. 사진/자기소개 입력 → 백엔드 호출 → 두 트랙 결과 표시까지 연결됨.
+- ✅ **MVP 백엔드** (`backend/`) — FastAPI 동작. 대사 생성(`/generate`, `/generate-from-photo`), 아카이브(`/scripts`), Supabase Auth(JWT 인증, user_id 분리) 완료. Railway 배포 완료(`scenemate-production.up.railway.app`).
+- ✅ **MVP 프론트엔드** (`frontend/`) — React + Vite. 사진/자기소개 입력 → 백엔드 호출 → 두 트랙 결과 표시, 아카이브, 오디션 피드백 기록까지 연결됨. Vercel 배포 완료(`scenemate-alpha.vercel.app`).
+- 🟡 **v3 — 대사 분석 공부** — 구현 중. 아래 설계 참조.
 
 ## 폴더 구조
 
@@ -44,14 +45,16 @@ scenemate/
 │  ├─ result.md / *_report.md   # 생성·검증 결과 리포트
 │  └─ .env.example              # 환경변수 예시 (.env 는 깃 제외)
 ├─ backend/                 # FastAPI 백엔드
-│  ├─ main.py                   # API 진입점(생성·아카이브·헬스체크)
+│  ├─ main.py                   # API 진입점(생성·아카이브·분석·헬스체크)
 │  ├─ generator.py              # 대사 2트랙 생성(11개 작법 규칙 프롬프트)
 │  ├─ vision.py                 # 사진 → 외모 키워드 추출(2단계 정책 우회)
+│  ├─ auth.py                   # JWT 검증 (Supabase Auth)
 │  ├─ db.py / models.py / schemas.py / init_db.py
-│  └─ .env.example              # DATABASE_URL, GOOGLE_API_KEY 예시
+│  └─ .env.example              # DATABASE_URL, GOOGLE_API_KEY, SUPABASE_JWT_SECRET 예시
 └─ frontend/                # React + Vite 프론트엔드
-   ├─ src/App.jsx               # 입력 폼 + 결과 화면
-   └─ .env.example              # VITE_API_URL 예시
+   ├─ src/App.jsx               # 입력 폼 + 결과 화면 + 아카이브 + 분석 화면
+   ├─ src/supabase.js           # Supabase 클라이언트
+   └─ .env.example              # VITE_API_URL, VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY 예시
 ```
 
 ## 셋업 & 실행
@@ -83,11 +86,12 @@ pip install -r requirements.txt
 # .env.example → .env 로 복사 후 값 입력
 #   GOOGLE_API_KEY=...                          (Gemini)
 #   DATABASE_URL=postgresql://...               (Supabase Session pooler 연결 문자열)
+#   SUPABASE_JWT_SECRET=...                     (Supabase JWT Secret)
 
 uvicorn main:app --reload      # 기본 http://localhost:8000
 ```
 
-주요 엔드포인트: `GET /health`, `GET /health/db`, `POST /generate`(텍스트), `POST /generate-from-photo`(사진), `GET·POST /scripts`(아카이브).
+주요 엔드포인트: `GET /health`, `GET /health/db`, `POST /generate`(텍스트), `POST /generate-from-photo`(사진), `GET·POST /scripts`(아카이브), `POST /analyze`(힌트), `POST /analyze/full`(전체 분석).
 
 ### 프론트엔드 (React + Vite)
 
@@ -118,23 +122,68 @@ npm run dev          # 기본 http://localhost:5173
 
 판정 기준: ① 트랙 분리(두 트랙이 실제로 다른 방향인가) ② 적정 길이(1~2분 분량) ③ 상충 입력 처리(차가운 외모 + 애교 말투를 두 트랙으로 분리) ④ 일관성(같은 입력 반복 시 일관된 결과). 세부 작법은 `generator.py`의 11개 작법 규칙(호칭·존댓말 일관성, 클리셰 금지, 구어체, 지문 괄호, 과잉 감정 지양 등)으로 강제한다.
 
+## v3 — 대사 분석 공부 설계
+
+아카이브에 저장된 기존 대사를 선택해 7개 레이어로 직접 분석하고, 막힐 때 AI 힌트를 요청하며, 완료 후 AI 분석과 나란히 비교하는 기능. **AI가 정답을 주는 게 아니라, 사용자가 먼저 생각하는 과정을 설계**한다.
+
+### 전체 흐름
+
+```
+아카이브에서 대사 선택
+    ↓
+분석 화면 진입 — 7개 레이어 입력 폼
+    ↓
+막힐 때 → 레이어별 힌트 요청 (AI가 방향만 제시, 정답 아님)
+    ↓
+분석 완료 → AI 전체 분석 생성
+    ↓
+내 분석 / AI 분석 나란히 비교
+    ↓
+결과 저장 (analysis 테이블)
+```
+
+### 7개 분석 레이어
+
+| # | 레이어 | 설명 |
+|---|---|---|
+| 1 | **서브텍스트** | 표면적 말 vs 실제 의도 |
+| 2 | **행동 동사** | 화자가 하려는 행동 (설득/회유/공격/숨김 등) |
+| 3 | **감정선 흐름** | 시작 → 중간 → 끝 감정 온도 변화 |
+| 4 | **상황·전사** | 현재 상황 + 이 대사 이전 맥락 |
+| 5 | **인물 배경** | 어떤 환경, 어떤 가치관 |
+| 6 | **관계 분석** | 상대방과의 관계, 권력 구도 |
+| 7 | **진짜 목표** | 단순 감정 표출 / 뭔가를 얻으려는가 / 감추려는가 |
+
+### 백엔드 추가
+
+- `POST /analyze` — 레이어별 힌트 생성 (대사 + 레이어 종류 입력)
+- `POST /analyze/full` — 7개 레이어 전체 AI 분석 생성
+- `analysis` 테이블 — script_id 참조, 사용자 분석 7개 레이어 + AI 분석 저장
+
+### 프론트엔드 추가
+
+- 아카이브 대사 상세에 **"분석하기"** 버튼
+- 분석 화면 — 7개 레이어 입력 폼 + 레이어별 힌트 버튼
+- 비교 화면 — 내 분석 / AI 분석 나란히 표시
+
 ## 기술 스택
 
-- **현재 사용**: Gemini(`gemini-2.5-flash-lite`, Vision + 대사 생성) · FastAPI · SQLAlchemy · PostgreSQL(Supabase) · React 19 · Vite
-- **계획**: pgvector(대사 벡터화 → 유사도 추천) · Redis(API 비용 캐싱 + WebSocket pub/sub) · WebSocket(시뮬레이터 실시간 스트리밍) · STT(faster-whisper/Whisper, 음성 → 말투 분석) · Recharts(성장 그래프) · Tailwind CSS · 배포(Railway / Vercel)
+- **현재 사용**: Gemini(`gemini-2.5-flash-lite`, Vision + 대사 생성) · FastAPI · SQLAlchemy · PostgreSQL(Supabase) · Supabase Auth · React 19 · Vite
+- **배포**: Railway(백엔드) · Vercel(프론트엔드)
+- **계획**: pgvector(대사 벡터화 → 유사도 추천) · Redis(API 비용 캐싱 + WebSocket pub/sub) · WebSocket(시뮬레이터 실시간 스트리밍) · Recharts(성장 그래프) · Tailwind CSS
 
 > 모델은 개발/검증 단계에서 무료 한도가 넉넉한 `gemini-2.5-flash-lite` 사용. 최종 품질은 `gemini-2.5-flash`로 전환 예정. 배포 전 GPT-4o Vision으로 품질 비교 검증.
 
 ## 개발 로드맵
 
-| 단계 | 내용 | 비고 |
+| 단계 | 내용 | 상태 |
 |---|---|---|
-| **STEP 0** | 프롬프트 검증 — 대사 창작 품질 확인. 안 되면 접근 방식 재검토 | ✅ 진행 (최대 2주) |
-| **MVP** | ① AI 맞춤 대사 추천 + ② 나만의 아카이브(저장·피드백 기록·임베딩 유사도 추천·성장 그래프) | 🟡 진행 (8~12주) |
-| **v2** | 오디션 시뮬레이터 — 유형별 AI 면접관 페르소나 + 난이도 조절 + WebSocket | MVP 안정화 후 |
-| **v3** | 대사 분석 공부 — 사용자가 먼저 분석, 막힐 때 힌트 + AI 분석 비교(서브텍스트·행동 동사·감정선 등) | v2 이후 |
+| **STEP 0** | 프롬프트 검증 — 대사 창작 품질 확인 | ✅ 완료 |
+| **MVP** | ① AI 맞춤 대사 추천 + ② 나만의 아카이브(저장·피드백 기록) + Supabase Auth + 배포 | ✅ 완료 |
+| **v3** | 대사 분석 공부 — 아카이브 대사 선택 → 7개 레이어 직접 분석 → 힌트 → AI 분석 비교 | 🟡 구현 중 |
+| **v2** | 오디션 시뮬레이터 — 유형별 AI 면접관 페르소나 + 난이도 조절 + WebSocket | 예정 |
 
-> 시간 박스 원칙(1인 개발 + 학업 병행): STEP 0이 늘어지면 프로젝트가 사망하므로 각 단계 종료 시점을 명확히 정의한다. MVP(대사 추천 + 아카이브)만으로도 완결된 서비스이며, v2 이후는 확장이다.
+> 시간 박스 원칙(1인 개발 + 학업 병행): MVP(대사 추천 + 아카이브)만으로도 완결된 서비스이며, v2·v3는 확장이다.
 
 ## 주의
 
