@@ -38,7 +38,7 @@ def get_current_user(creds: HTTPAuthorizationCredentials = Depends(_bearer)) -> 
         payload = jwt.decode(
             token,
             signing_key.key,
-            algorithms=["RS256"],
+            algorithms=["ES256"],
             audience="authenticated",
         )
         return payload["sub"]
