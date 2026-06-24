@@ -7,3 +7,4 @@ python-dotenv
 google-genai
 python-multipart
 PyJWT[crypto]
+cryptography
