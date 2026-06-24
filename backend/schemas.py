@@ -60,3 +60,8 @@ class ScriptOut(BaseModel):
     feedback: list[FeedbackItem] | None = None   # 누적 오디션 피드백
 
     model_config = {"from_attributes": True}  # SQLAlchemy 객체 → Pydantic 변환 허용
+
+
+class AdminScriptOut(ScriptOut):
+    """어드민 전용 응답 — user_id 포함."""
+    user_id: str | None = None

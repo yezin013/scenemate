@@ -14,6 +14,7 @@ from generator import generate_dialogues
 from judge import refine_track
 from vision import extract_keywords
 from auth import get_current_user
+from admin import router as admin_router
 
 app = FastAPI(title="SceneMate API", version="0.1.0")
 
@@ -24,6 +25,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(admin_router)
 
 
 # ── 헬스체크 ──────────────────────────────────────────────
