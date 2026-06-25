@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 # backend/.env 에서 DATABASE_URL 로드 (실행 위치와 무관하게)
-load_dotenv(Path(__file__).parent / ".env")
+load_dotenv(Path(__file__).parent / ".env", override=False)
 DATABASE_URL = os.environ.get("DATABASE_URL", "NOT_FOUND")
 print(f"[DEBUG] DATABASE_URL prefix: {DATABASE_URL[:30]!r}")
 
