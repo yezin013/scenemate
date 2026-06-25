@@ -21,7 +21,7 @@
 | ORM | SQLAlchemy + psycopg2 | Session Pooler 직접 연결 (supabase-py 대신) |
 | AI | Google Gemini (`gemini-2.5-flash-lite`) | 무료 한도 최대, Vision + 텍스트 통합 |
 | 프론트 | React (Vite) | 가벼운 SPA, 빠른 빌드 |
-| 인증 | Supabase Auth + PyJWT | JWT 검증만 백엔드에서 직접 처리 |
+| 인증 | Supabase Auth + PyJWT | ES256+JWKS로 JWT 검증 (백엔드 직접 처리) |
 | 배포 | Railway (백엔드) + Vercel (프론트) | 무료/저비용 PaaS |
 
 ### 기술 결정 주의사항
@@ -29,6 +29,7 @@
 - **Gemini 무료 티어**: 입력 데이터를 학습에 사용할 수 있음. 개발·테스트는 가짜/스톡/본인 사진으로만 진행. 실사용자의 사진·자기소개를 받는 서비스를 운영할 시점에 유료 플랜으로 전환 필수.
 - **supabase-py 미사용**: 클라이언트 라이브러리 대신 SQLAlchemy로 Session Pooler에 직접 연결. JSONB 비정형 데이터를 자유롭게 다룰 수 있고 의존성이 단순.
 - **목소리(Whisper) 입력 제거** (2026-06-12): 구현 복잡도 대비 핵심 차별점이 아니라고 판단. 외모/성격 두 기준만 유지.
+- **Railway `DATABASE_URL` 충돌 주의**: Railway에 자체 PostgreSQL 서비스가 연결돼 있으면 `DATABASE_URL`을 빈 값으로 자동 주입해 덮어씀. 변수명을 `SUPABASE_DATABASE_URL`로 사용해 충돌 회피.
 
 ---
 
@@ -44,13 +45,16 @@
                              ↓
                           judge.py → fixer.py (자가교정)
   /scripts              → DB CRUD
+  /scripts/{id}/analyze → analyze.py (Gemini — 힌트·전체 분석)
   /admin/*              → require_admin 미들웨어
     ↓ SQLAlchemy (Session Pooler)
 [Supabase Postgres]
-  scripts 테이블 (JSONB inputs / feedback)
+  scripts  테이블 (JSONB inputs / feedback)
+  analysis 테이블 (7개 레이어 + AI 분석 JSONB)
 
 [Supabase Auth]
-  JWT 발급 → 브라우저 보관 → API 헤더로 전달 → PyJWT 검증
+  JWT 발급(ES256) → 브라우저 보관 → API 헤더로 전달
+    → PyJWKClient(JWKS) 검증 → user UUID 반환
 ```
 
 ---
@@ -74,6 +78,25 @@
 | `user_id` | uuid | Supabase Auth 사용자 UUID |
 
 마이그레이션 스크립트: `backend/migrate_add_feedback.py`, `backend/migrate_add_user_id.py`
+
+### `analysis` 테이블
+
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| `id` | bigserial PK | 자동 증가 |
+| `created_at` | timestamptz | 서버 기본값 |
+| `script_id` | bigint FK→scripts(id) | ON DELETE CASCADE |
+| `user_id` | uuid | Supabase Auth 사용자 UUID |
+| `subtext` | text | 서브텍스트 (사용자 작성) |
+| `action_verb` | text | 행동 동사 (사용자 작성) |
+| `emotion_arc` | text | 감정선 흐름 (사용자 작성) |
+| `context` | text | 상황·전사 (사용자 작성) |
+| `character_bg` | text | 인물 배경 (사용자 작성) |
+| `relationship` | text | 관계 분석 (사용자 작성) |
+| `real_goal` | text | 진짜 목표 (사용자 작성) |
+| `ai_analysis` | jsonb | AI가 생성한 7개 레이어 분석 결과 |
+
+마이그레이션 스크립트: `backend/migrate_create_analysis.py`
 
 ---
 
@@ -161,14 +184,14 @@
 
 ### Supabase Auth 연결
 
-- `backend/auth.py`: Supabase JWT를 PyJWT로 직접 검증 → `user_id` (UUID) 반환
+- `backend/auth.py`: Supabase JWT를 **ES256 + JWKS** 방식으로 검증 → `user_id` (UUID) 반환
+  - `PyJWKClient`가 `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`에서 공개키 자동 조회·캐싱
+  - `PyJWT[crypto]` + `cryptography` 패키지 필요 (ES256 지원)
+  - HS256(JWT Secret) 방식은 Supabase가 실제로 ES256을 사용하므로 동작하지 않음
 - 모든 API 엔드포인트에 `Depends(get_current_user)` 적용
 - `scripts.user_id` 컬럼 추가 (`migrate_add_user_id.py`) — 사용자별 데이터 분리
 - 프론트 `frontend/src/supabase.js`: `@supabase/supabase-js` 클라이언트
 - 로그인/회원가입/로그아웃 UI (`Login` 컴포넌트)
-
-**환경변수 (백엔드)**
-- `SUPABASE_JWT_SECRET`: Supabase 대시보드 → Settings → API → JWT Secret
 
 ---
 
@@ -202,6 +225,38 @@
 
 ---
 
+### v3 — 대사 분석 기능
+
+아카이브의 기존 대사를 선택해 7개 레이어를 직접 작성하고, AI 분석과 나란히 비교하는 학습 기능.
+
+**백엔드**
+- `backend/analyze.py`: Gemini 기반 레이어별 힌트·전체 분석 생성
+- `POST /scripts/{id}/analyze` — 특정 레이어 힌트 반환 (저장 없음)
+- `GET /scripts/{id}/analyze/full` — 저장된 분석 조회
+- `POST /scripts/{id}/analyze/full` — 사용자 7개 레이어 저장 + AI 전체 분석 생성 (upsert)
+- DB: `analysis` 테이블 추가 (`migrate_create_analysis.py`)
+
+**7개 분석 레이어**
+
+| 키 | 레이블 |
+|----|--------|
+| `subtext` | 서브텍스트 |
+| `action_verb` | 행동 동사 |
+| `emotion_arc` | 감정선 흐름 |
+| `context` | 상황·전사 |
+| `character_bg` | 인물 배경 |
+| `relationship` | 관계 분석 |
+| `real_goal` | 진짜 목표 |
+
+**프론트엔드**
+- 아카이브 각 대사 하단 "분석하기" 버튼 → `AnalysisScreen`
+- `AnalysisScreen`: 7개 레이어 textarea + 레이어별 "힌트" 버튼 → "분석 완료" 제출
+- `CompareScreen`: 내 분석 | AI 분석 2열 그리드 비교 (모바일 세로 스택)
+
+**Railway 마이그레이션**: `python migrate_create_analysis.py`를 Railway Console에서 실행해야 `analysis` 테이블이 생성됨.
+
+---
+
 ## API 레퍼런스
 
 모든 엔드포인트(헬스체크 제외)는 `Authorization: Bearer <supabase-jwt>` 헤더 필요.
@@ -217,6 +272,9 @@
 | GET | `/scripts` | 내 대사 목록 |
 | GET | `/scripts/{id}` | 대사 단건 조회 |
 | PATCH | `/scripts/{id}/feedback` | 오디션 피드백 추가 |
+| POST | `/scripts/{id}/analyze` | 레이어별 힌트 반환 |
+| GET | `/scripts/{id}/analyze/full` | 저장된 분석 조회 |
+| POST | `/scripts/{id}/analyze/full` | 사용자 분석 저장 + AI 분석 생성 |
 | GET | `/admin/check` | 어드민 여부 확인 |
 | GET | `/admin/stats` | 전체 사용 통계 |
 | GET | `/admin/scripts` | 전체 대사 목록 (어드민 전용) |
@@ -259,10 +317,13 @@
 
 | 변수 | 설명 |
 |------|------|
-| `DATABASE_URL` | Supabase Session Pooler URL |
+| `SUPABASE_DATABASE_URL` | Supabase Session Pooler URL (`postgresql://postgres.<ref>:<pw>@aws-X-<region>.pooler.supabase.com:5432/postgres`) |
+| `SUPABASE_URL` | Supabase 프로젝트 URL (`https://<ref>.supabase.co`) — JWKS 공개키 조회에 사용 |
 | `GOOGLE_API_KEY` | Google AI Studio API 키 |
-| `SUPABASE_JWT_SECRET` | Supabase JWT Secret (Settings → API) |
 | `ADMIN_USER_ID` | 어드민 계정 UUID (Supabase Auth → Users에서 확인) |
+
+> **주의**: `DATABASE_URL`은 Railway 내부 PostgreSQL 서비스가 있을 경우 자동 주입되어 덮어써짐. 반드시 `SUPABASE_DATABASE_URL` 사용.
+> `SUPABASE_JWT_SECRET`은 사용하지 않음 — ES256+JWKS 방식으로 공개키를 직접 조회하므로 불필요.
 
 ### 프론트엔드 (Vercel)
 
@@ -276,9 +337,9 @@
 
 ## 향후 로드맵
 
-| 버전 | 기능 |
-|------|------|
-| v2 | 임베딩 유사도 기반 대사 추천 (Supabase pgvector) |
-| v3 | 오디션 시뮬레이터 · 대사 분석 학습 기능 |
+| 버전 | 기능 | 상태 |
+|------|------|------|
+| v2 | 임베딩 유사도 기반 대사 추천 (Supabase pgvector) | 미착수 |
+| v3 | 대사 분석 학습 기능 (7레이어 작성 + AI 비교) | 완료 |
 
 **v2 진입 전 필수**: Gemini 유료 플랜 전환 (실사용자 생체정보 수집 전).
