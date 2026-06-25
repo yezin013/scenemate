@@ -212,11 +212,13 @@
 
 ### 배포
 
-**백엔드 — Railway**
-- 설정 파일: `backend/railway.toml`
+**백엔드 — Render**
 - Root Directory: `backend/`
-- 시작 명령: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- 헬스체크: `/health`
+- Runtime: Python 3
+- Build Command: `pip install -r requirements.txt`
+- Start Command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+- URL: `https://scenemate.onrender.com`
+- Free 인스턴스 (15분 비활성 시 슬립 → 첫 요청 30~50초 대기)
 
 **프론트엔드 — Vercel**
 - 설정 파일: `frontend/vercel.json` (SPA 리라이트 규칙)
