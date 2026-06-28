@@ -224,7 +224,28 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cur
 }
 .fb-cancel:hover { color: var(--muted); }
 
-/* ── 분석 버튼 (아카이브 아이템) ── */
+/* ── 분석 버튼 / 비슷한 대사 버튼 (아카이브 아이템) ── */
+.similar-btn {
+  cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 600; color: #7ec8a4;
+  background: rgba(126, 200, 164, 0.08); border: 1px solid rgba(126, 200, 164, 0.3);
+  border-radius: 10px; padding: 7px 13px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.similar-btn:hover:not(:disabled) { background: rgba(126, 200, 164, 0.16); border-color: rgba(126, 200, 164, 0.55); }
+.similar-btn:disabled { opacity: 0.6; cursor: default; }
+
+.similar-list {
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.similar-empty { margin: 0; font-size: 13px; color: var(--faint); }
+.similar-item {
+  background: #14121b; border: 1px solid var(--border);
+  border-radius: 11px; padding: 12px 14px;
+}
+.similar-item-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.similar-score { margin-left: auto; font-size: 11px; font-weight: 700; color: #7ec8a4; }
+
 .analyze-btn {
   cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--violet);
   background: rgba(169, 155, 224, 0.08); border: 1px solid rgba(169, 155, 224, 0.3);

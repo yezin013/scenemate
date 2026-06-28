@@ -361,6 +361,19 @@ function Archive({ data, loading, error, onOpen, onRefresh, auth, onAnalyze }) {
 }
 
 function ArchiveItem({ s, onRefresh, auth, onAnalyze }) {
+  const [similar, setSimilar] = useState(null)
+  const [simLoading, setSimLoading] = useState(false)
+
+  async function toggleSimilar() {
+    if (similar !== null) { setSimilar(null); return }
+    setSimLoading(true)
+    try {
+      const res = await fetch(`${API}/scripts/${s.id}/similar`, { headers: auth })
+      setSimilar(res.ok ? await res.json() : [])
+    } catch { setSimilar([]) }
+    finally { setSimLoading(false) }
+  }
+
   return (
     <li className={`archive-item track-${s.track === 'personality' ? 'b' : 'a'}`}>
       <div className="archive-item-head">
@@ -370,11 +383,33 @@ function ArchiveItem({ s, onRefresh, auth, onAnalyze }) {
       </div>
       {s.setup && <p className="archive-setup">{s.setup}</p>}
       <p className="archive-script">{s.script_text}</p>
-      <div style={{ marginTop: '12px' }}>
+      <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         <button type="button" className="analyze-btn" onClick={() => onAnalyze(s)}>
           분석하기
         </button>
+        <button type="button" className="similar-btn" onClick={toggleSimilar} disabled={simLoading}>
+          {simLoading ? '찾는 중…' : similar !== null ? '비슷한 대사 닫기' : '비슷한 대사'}
+        </button>
       </div>
+      {similar !== null && (
+        <div className="similar-list">
+          {similar.length === 0 ? (
+            <p className="similar-empty">비슷한 대사가 없어요. 대사를 더 저장하면 비교할 수 있어요.</p>
+          ) : similar.map(sim => (
+            <div key={sim.id} className="similar-item">
+              <div className="similar-item-head">
+                <span className="archive-track" style={{ color: sim.track === 'personality' ? 'var(--violet)' : undefined }}>
+                  {TRACK_LABEL[sim.track] ?? '대사'}
+                </span>
+                {sim.title && <span className="archive-item-title" style={{ fontSize: '13px' }}>{sim.title}</span>}
+                <span className="similar-score">{Math.round(sim.similarity * 100)}% 유사</span>
+              </div>
+              {sim.setup && <p className="archive-setup" style={{ margin: '4px 0 6px' }}>{sim.setup}</p>}
+              <p className="archive-script" style={{ fontSize: '13.5px' }}>{sim.script_text}</p>
+            </div>
+          ))}
+        </div>
+      )}
       <FeedbackSection script={s} onRefresh={onRefresh} auth={auth} />
     </li>
   )

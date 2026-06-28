@@ -9,14 +9,16 @@ from sqlalchemy.orm import Session
 
 from db import get_db
 import models
-from schemas import (ScriptCreate, ScriptOut, GenerateRequest, GenerateResponse, FeedbackItem,
-                     HintRequest, HintResponse, AnalysisLayers, AnalysisOut, ANALYSIS_LAYER_KEYS)
+from schemas import (ScriptCreate, ScriptOut, SimilarScriptOut, GenerateRequest, GenerateResponse,
+                     FeedbackItem, HintRequest, HintResponse, AnalysisLayers, AnalysisOut,
+                     ANALYSIS_LAYER_KEYS)
 from generator import generate_dialogues
 from judge import refine_track
 from vision import extract_keywords
 from auth import get_current_user
 from admin import router as admin_router
 from analyze import get_hint, get_full_analysis
+from embedder import embed_script
 
 app = FastAPI(title="SceneMate API", version="0.1.0")
 
@@ -122,7 +124,44 @@ def create_script(payload: ScriptCreate, db: Session = Depends(get_db),
     db.add(obj)
     db.commit()
     db.refresh(obj)
+    try:
+        obj.embedding = embed_script(obj.title, obj.setup, obj.script_text)
+        db.commit()
+    except Exception:
+        pass  # 임베딩 실패해도 저장은 유지
     return obj
+
+
+@app.get("/scripts/{script_id}/similar", response_model=list[SimilarScriptOut])
+def get_similar(script_id: int, db: Session = Depends(get_db),
+                user_id: str = Depends(get_current_user)):
+    """저장된 대사 중 코사인 유사도 상위 5개 반환."""
+    obj = db.get(models.Script, script_id)
+    if obj is None or obj.user_id != user_id:
+        raise HTTPException(status_code=404, detail="script not found")
+    if obj.embedding is None:
+        return []
+    vec_str = "[" + ",".join(str(x) for x in obj.embedding) + "]"
+    rows = db.execute(
+        text("""
+            SELECT id, title, script_text, setup, track,
+                   1 - (embedding <=> (:vec)::vector) AS similarity
+            FROM scripts
+            WHERE user_id = :user_id
+              AND id != :script_id
+              AND embedding IS NOT NULL
+            ORDER BY embedding <=> (:vec)::vector
+            LIMIT 5
+        """),
+        {"vec": vec_str, "user_id": user_id, "script_id": script_id},
+    ).fetchall()
+    return [
+        SimilarScriptOut(
+            id=r.id, title=r.title, script_text=r.script_text,
+            setup=r.setup, track=r.track, similarity=round(float(r.similarity), 3),
+        )
+        for r in rows
+    ]
 
 
 @app.get("/scripts", response_model=List[ScriptOut])

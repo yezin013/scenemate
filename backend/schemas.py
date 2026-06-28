@@ -67,6 +67,18 @@ class AdminScriptOut(ScriptOut):
     user_id: str | None = None
 
 
+# ── 유사 대사 ─────────────────────────────────────────────
+class SimilarScriptOut(BaseModel):
+    id: int
+    title: str | None = None
+    setup: str | None = None
+    script_text: str
+    track: str | None = None
+    similarity: float
+
+    model_config = {"from_attributes": True}
+
+
 # ── 대사 분석 ─────────────────────────────────────────────
 ANALYSIS_LAYER_KEYS = ["subtext", "action_verb", "emotion_arc", "context",
                        "character_bg", "relationship", "real_goal"]
