@@ -143,7 +143,10 @@ function Main({ token }) {
       fd.append('self_intro', selfIntro)
       fd.append('save', 'false')
       const res = await fetch(`${API}/generate-from-photo`, { method: 'POST', headers: auth, body: fd })
-      if (!res.ok) throw new Error(`서버 오류 ${res.status}`)
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.detail || `서버 오류 ${res.status}`)
+      }
       setResult(await res.json())
       setGenId(n => n + 1)
     } catch (err) {

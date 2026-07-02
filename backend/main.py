@@ -138,8 +138,11 @@ def generate_from_photo(
     image_bytes = photo.file.read()
     if not image_bytes:
         raise HTTPException(status_code=400, detail="empty photo")
-    keywords = extract_keywords(image_bytes, photo.content_type or "image/jpeg")
-    result = generate_dialogues(keywords, self_intro)
+    try:
+        keywords = extract_keywords(image_bytes, photo.content_type or "image/jpeg")
+        result = generate_dialogues(keywords, self_intro)
+    except RuntimeError:
+        raise HTTPException(status_code=503, detail="AI 호출 한도를 잠시 초과했어요. 1~2분 후 다시 시도해 주세요.")
     saved_ids = None
     if save:
         inputs = {"appearance_keywords": keywords, "self_intro": self_intro}
