@@ -10,7 +10,7 @@ Phase 2에서 generator.generate_dialogues()에 연결 예정. (현재 main.py�
 from llm import gen_json
 from fixer import fix, rule_clean, LEN_MIN, LEN_MAX
 
-MAX_PASSES = 2   # 교정 반복 상한 (이 횟수 넘으면 최선본을 그대로 반환)
+MAX_PASSES = 1   # 교정 반복 상한 (이 횟수 넘으면 최선본을 그대로 반환)
 
 JUDGE_SYS = (
     "당신은 한국 연극영화과 오디션 독백 대사의 품질을 검수하는 깐깐한 드라마투르그입니다. "
