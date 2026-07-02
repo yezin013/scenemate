@@ -24,18 +24,22 @@ _STAGE1 = (
 )
 
 
+_RATE_LIMIT_ERRORS = ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED")
+_MAX_SLEEP = 10   # Gemini retry-after가 길어도 최대 10초만 대기
+
+
 def extract_keywords(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
     """사진 바이트 → 객관적 외모 키워드 문자열."""
     part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
-    for _ in range(5):
+    for _ in range(3):
         try:
             r = _client.models.generate_content(model=MODEL, contents=[part, _STAGE1])
             return (r.text or "").strip()
         except Exception as e:
             msg = str(e)
-            if any(x in msg for x in ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED")):
+            if any(x in msg for x in _RATE_LIMIT_ERRORS):
                 m = re.search(r"retry in ([0-9.]+)", msg)
-                time.sleep(float(m.group(1)) + 2 if m else 8)
+                time.sleep(min(float(m.group(1)) + 1 if m else 8, _MAX_SLEEP))
                 continue
             raise
-    raise RuntimeError("Vision 재시도 초과 (한도/과부하 가능)")
+    raise RuntimeError("rate_limit")

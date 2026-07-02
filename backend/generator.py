@@ -84,7 +84,8 @@ def generate_dialogues(appearance_keywords: str, self_intro: str,
                        temperature: float = 0.9) -> dict:
     """입력 2종(외모 키워드·자기소개) → {track_A_appearance, track_B_personality}."""
     prompt = build_prompt(appearance_keywords, self_intro)
-    for _ in range(5):
+    _MAX_SLEEP = 10
+    for _ in range(3):
         try:
             resp = _client.models.generate_content(
                 model=MODEL,
@@ -100,7 +101,7 @@ def generate_dialogues(appearance_keywords: str, self_intro: str,
             msg = str(e)
             if any(x in msg for x in ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED")):
                 m = re.search(r"retry in ([0-9.]+)", msg)
-                time.sleep(float(m.group(1)) + 2 if m else 8)
+                time.sleep(min(float(m.group(1)) + 1 if m else 8, _MAX_SLEEP))
                 continue
             raise
-    raise RuntimeError("생성 재시도 초과 (한도/과부하 가능)")
+    raise RuntimeError("rate_limit")

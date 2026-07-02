@@ -33,8 +33,11 @@ def _parse_json(text):
         return json.JSONDecoder().raw_decode(s[i:])[0]  # 첫 JSON만, 뒤 잡음 무시
 
 
-def gen_json(contents, system=None, temperature=0.9, model=MODEL, tries=5):
-    """JSON 응답 생성 공통 래퍼 — 429(한도)·503(과부하)은 안내된 시간만큼 대기 후 재시도."""
+_MAX_SLEEP = 10
+
+
+def gen_json(contents, system=None, temperature=0.9, model=MODEL, tries=3):
+    """JSON 응답 생성 공통 래퍼 — 429(한도)·503(과부하)은 최대 10초 대기 후 재시도."""
     cfg = types.GenerateContentConfig(
         system_instruction=system,
         response_mime_type="application/json",
@@ -48,7 +51,7 @@ def gen_json(contents, system=None, temperature=0.9, model=MODEL, tries=5):
             msg = str(e)
             if any(x in msg for x in ("429", "503", "UNAVAILABLE", "RESOURCE_EXHAUSTED")):
                 m = re.search(r"retry in ([0-9.]+)", msg)
-                time.sleep(float(m.group(1)) + 2 if m else 8)
+                time.sleep(min(float(m.group(1)) + 1 if m else 8, _MAX_SLEEP))
                 continue
             raise
-    raise RuntimeError("LLM 재시도 초과 (한도/과부하 가능)")
+    raise RuntimeError("rate_limit")
