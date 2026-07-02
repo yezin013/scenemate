@@ -2,12 +2,12 @@
 from datetime import datetime, timezone
 from typing import List
 
-from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Form
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from db import get_db
+from db import get_db, SessionLocal
 import models
 from schemas import (ScriptCreate, ScriptOut, SimilarScriptOut, GenerateRequest, GenerateResponse,
                      FeedbackItem, HintRequest, HintResponse, AnalysisLayers, AnalysisOut,
@@ -50,13 +50,47 @@ def health_db(db: Session = Depends(get_db)):
     return {"db": "connected", "version": version[:60]}
 
 
-# ── judge+fixer 정제 헬퍼 ────────────────────────────────
-def _refine_result(result: dict, appearance_keywords: str, self_intro: str) -> dict:
-    """생성된 두 트랙을 judge+fixer 파이프라인으로 정제."""
-    for track_key, track_kind in [("track_A_appearance", "A"), ("track_B_personality", "B")]:
-        refined = refine_track(appearance_keywords, self_intro, track_kind, result[track_key])
-        result[track_key] = refined["final"]
-    return result
+# ── 백그라운드: 저장된 대사 품질 검증 + 업데이트 ───────────
+def _refine_and_update(script_id: int) -> None:
+    """저장 후 백그라운드에서 judge+fixer 실행. 품질 이슈 있으면 DB 조용히 업데이트."""
+    db = SessionLocal()
+    try:
+        obj = db.get(models.Script, script_id)
+        if not obj or obj.source != "ai" or not obj.inputs:
+            return
+        appearance_kw = obj.inputs.get("appearance_keywords") or ""
+        self_intro = obj.inputs.get("self_intro") or ""
+        if not appearance_kw and not self_intro:
+            return
+        track_kind = "A" if obj.track == "appearance" else "B"
+        track_data = {
+            "title": obj.title or "",
+            "situation": obj.setup or "",
+            "objective": obj.fit_reason or "",
+            "script": obj.script_text,
+        }
+        refined = refine_track(appearance_kw, self_intro, track_kind, track_data)
+        if refined["passes"][0]["issues"]:   # 초기 이슈가 있었던 경우만 업데이트
+            final = refined["final"]
+            original_text = obj.script_text
+            obj.script_text = final.get("script", obj.script_text)
+            if final.get("title"):
+                obj.title = final["title"]
+            if final.get("situation"):
+                obj.setup = final["situation"]
+            if final.get("objective"):
+                obj.fit_reason = final["objective"]
+            db.commit()
+            if obj.script_text != original_text:   # 텍스트 바뀌었으면 임베딩 재생성
+                try:
+                    obj.embedding = embed_script(obj.title, obj.setup, obj.script_text)
+                    db.commit()
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    finally:
+        db.close()
 
 
 # ── 생성 결과 저장 헬퍼 ───────────────────────────────────
@@ -84,7 +118,6 @@ def generate(payload: GenerateRequest, db: Session = Depends(get_db),
              user_id: str = Depends(get_current_user)):
     """입력 2종(외모키워드·자기소개) → 대사 2개."""
     result = generate_dialogues(payload.appearance_keywords, payload.self_intro)
-    result = _refine_result(result, payload.appearance_keywords, payload.self_intro)
     saved_ids = None
     if payload.save:
         inputs = {"appearance_keywords": payload.appearance_keywords, "self_intro": payload.self_intro}
@@ -107,7 +140,6 @@ def generate_from_photo(
         raise HTTPException(status_code=400, detail="empty photo")
     keywords = extract_keywords(image_bytes, photo.content_type or "image/jpeg")
     result = generate_dialogues(keywords, self_intro)
-    result = _refine_result(result, keywords, self_intro)
     saved_ids = None
     if save:
         inputs = {"appearance_keywords": keywords, "self_intro": self_intro}
@@ -117,9 +149,10 @@ def generate_from_photo(
 
 # ── 아카이브 (대사 저장/조회) ─────────────────────────────
 @app.post("/scripts", response_model=ScriptOut)
-def create_script(payload: ScriptCreate, db: Session = Depends(get_db),
+def create_script(payload: ScriptCreate, background_tasks: BackgroundTasks,
+                  db: Session = Depends(get_db),
                   user_id: str = Depends(get_current_user)):
-    """대사 한 개 저장."""
+    """대사 한 개 저장. 임베딩은 동기, judge/fixer는 백그라운드 실행."""
     obj = models.Script(**payload.model_dump(), user_id=user_id)
     db.add(obj)
     db.commit()
@@ -128,7 +161,8 @@ def create_script(payload: ScriptCreate, db: Session = Depends(get_db),
         obj.embedding = embed_script(obj.title, obj.setup, obj.script_text)
         db.commit()
     except Exception:
-        pass  # 임베딩 실패해도 저장은 유지
+        pass
+    background_tasks.add_task(_refine_and_update, obj.id)
     return obj
 
 
