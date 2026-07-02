@@ -7,8 +7,6 @@ prompt_test/validation_agent.py에서 추출. notebook.ipynb 의존 제거하고
        단, 교정본이 '나아질 때만' 채택(악화 방지).
 Phase 2에서 generator.generate_dialogues()에 연결 예정. (현재 main.py에는 미연결)
 """
-import time
-
 from llm import gen_json
 from fixer import fix, rule_clean, LEN_MIN, LEN_MAX
 
@@ -60,7 +58,6 @@ def diagnose(appearance_keywords, self_intro, track_kind, track):
     length = len(t["script"])
     len_issue = [] if LEN_MIN <= length <= LEN_MAX else [f"길이 {length}자 (목표 {LEN_MIN}~{LEN_MAX})"]
     verdict = judge(appearance_keywords, self_intro, track_kind, t)
-    time.sleep(2)
     return rule_issues + len_issue + ng_list(verdict), t
 
 
@@ -76,7 +73,6 @@ def refine_track(appearance_keywords, self_intro, track_kind, track, max_passes=
         if not best_issues:                                                      # 이미 깨끗 → 끝
             break
         cand = fix(appearance_keywords, self_intro, track_kind, best, best_issues)
-        time.sleep(2)
         cand_issues, cand = diagnose(appearance_keywords, self_intro, track_kind, cand)
         log["passes"].append({"pass": p, "issues": cand_issues})
         if len(cand_issues) < len(best_issues):                                  # 나아짐 → 채택
