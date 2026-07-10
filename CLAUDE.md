@@ -39,10 +39,11 @@ git status
 - 어드민 패널: `/admin/check`, `/admin/stats`, `/admin/scripts`
 - 배포: Render(백엔드) + Vercel(프론트) — 비용 0원
 - v3 대사 분석 기능: `analysis` 테이블 + 7개 레이어 입력/힌트/AI 비교 화면
+- v2: 임베딩 유사도 기반 대사 추천 (Gemini text-embedding-004 + Supabase pgvector 코사인 유사도, `GET /scripts/{id}/similar`)
+- 안정화: judge/fixer 백그라운드 처리·타임아웃 대응, CORS/503 오류 수정, Gemini rate limit 크래시 방지
 
 ### 남은 작업
 
-- v2: 임베딩 유사도 기반 대사 추천 (Supabase pgvector + Gemini Embedding API)
 - 실사용자 받기 전: Gemini 유료 플랜 전환 (무료 티어는 입력 데이터 학습에 사용될 수 있음)
 
 ---
