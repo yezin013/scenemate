@@ -41,17 +41,17 @@ git status
 - v3 대사 분석 기능: `analysis` 테이블 + 7개 레이어 입력/힌트/AI 비교 화면
 - v2: 임베딩 유사도 기반 대사 추천 (Gemini text-embedding-004 + Supabase pgvector 코사인 유사도, `GET /scripts/{id}/similar`)
 - 안정화: judge/fixer 백그라운드 처리·타임아웃 대응, CORS/503 오류 수정, Gemini rate limit 크래시 방지
+- 프론트 리팩토링: `App.jsx`(747줄→라우팅만) → `api.js` + `screens/{Login,GenerateScreen,ArchiveScreen,AnalysisScreen,CompareScreen,AdminPanel}.jsx` 분리, 컴포넌트별 커밋 8개
 
-### 남은 작업 (순서 확정 — 2026-07-14)
+### 남은 작업 (순서 확정 — 2026-07-14, 1번 완료로 재번호)
 
-1. 프론트 리팩토링 — `App.jsx`(747줄) 화면 단위 분리(로그인/생성/아카이브/분석/어드민). 시뮬레이터 얹기 전에 먼저 할 것(나중에 하면 비용 2배). Tailwind 전환은 선택(부담되면 스킵).
-2. 시뮬레이터 2-a. 프롬프트 검증 — 단일 "면접관" 페르소나(장르별 3분할 안 함) + 난이도 3단계. `prompt_test/`의 `GENAI_CACHE` 캐시 재사용(무료 쿼터 절약).
-3. 시뮬레이터 DB 스키마 설계 + 테이블 생성 — `scripts`는 독백용 스키마라 시뮬레이터(대화 히스토리·난이도·오디션 결과)엔 안 맞음. 새 테이블(예: `simulations`, 대화 히스토리는 JSONB) 필요. `init_db.py`(없는 테이블만 생성, 컬럼 변경 불가)로는 안 됨 — `migrate_create_analysis.py`와 같은 방식으로 `migrate_create_simulations.py` 작성해 raw SQL 직접 실행.
-4. 시뮬레이터 2-b. HTTP 멀티턴 구현 (대화 히스토리 + 아카이브 자동저장) — 핵심 가치는 여기서 완성.
-5. Recharts 성장 그래프 — 2-b에서 이미 데이터가 쌓이기 시작하므로 2-c(WebSocket) 완료를 기다릴 필요 없음.
-6. 시뮬레이터 2-c. WebSocket 스트리밍 전환 — **조건부**. Render 무료 인스턴스는 15분 유휴 슬립인데, WebSocket은 연결 유지형 프로토콜이라 슬립 복귀 중 연결 실패·재연결 로직이 필요해 "전송 방식만 교체"보다 일이 큼. 2-b로 핵심가치는 이미 완성이므로, 2-b 완료 후 "HTTP로 충분하다" 판단되면 스킵/보류 가능. Redis pub/sub은 스킵(서버 1대라 불필요).
-7. Redis 캐싱 + Gemini 유료 전환 — 실사용자(사진) 받기 직전에 함께. Redis는 API 비용 절감용이라 유료 전환 전엔 절감할 비용이 없음. Gemini는 무료 티어가 입력 데이터를 학습에 쓸 수 있어 실사진 받기 전 필수.
-8. Whisper STT — 드랍 후보 (2026-06-12에 생성 입력에서 이미 한 번 뺀 전례 있음).
+1. 시뮬레이터 2-a. 프롬프트 검증 — 단일 "면접관" 페르소나(장르별 3분할 안 함) + 난이도 3단계. `prompt_test/`의 `GENAI_CACHE` 캐시 재사용(무료 쿼터 절약).
+2. 시뮬레이터 DB 스키마 설계 + 테이블 생성 — `scripts`는 독백용 스키마라 시뮬레이터(대화 히스토리·난이도·오디션 결과)엔 안 맞음. 새 테이블(예: `simulations`, 대화 히스토리는 JSONB) 필요. `init_db.py`(없는 테이블만 생성, 컬럼 변경 불가)로는 안 됨 — `migrate_create_analysis.py`와 같은 방식으로 `migrate_create_simulations.py` 작성해 raw SQL 직접 실행.
+3. 시뮬레이터 2-b. HTTP 멀티턴 구현 (대화 히스토리 + 아카이브 자동저장) — 핵심 가치는 여기서 완성.
+4. Recharts 성장 그래프 — 2-b에서 이미 데이터가 쌓이기 시작하므로 2-c(WebSocket) 완료를 기다릴 필요 없음.
+5. 시뮬레이터 2-c. WebSocket 스트리밍 전환 — **조건부**. Render 무료 인스턴스는 15분 유휴 슬립인데, WebSocket은 연결 유지형 프로토콜이라 슬립 복귀 중 연결 실패·재연결 로직이 필요해 "전송 방식만 교체"보다 일이 큼. 2-b로 핵심가치는 이미 완성이므로, 2-b 완료 후 "HTTP로 충분하다" 판단되면 스킵/보류 가능. Redis pub/sub은 스킵(서버 1대라 불필요).
+6. Redis 캐싱 + Gemini 유료 전환 — 실사용자(사진) 받기 직전에 함께. Redis는 API 비용 절감용이라 유료 전환 전엔 절감할 비용이 없음. Gemini는 무료 티어가 입력 데이터를 학습에 쓸 수 있어 실사진 받기 전 필수.
+7. Whisper STT — 드랍 후보 (2026-06-12에 생성 입력에서 이미 한 번 뺀 전례 있음).
 
 ---
 
