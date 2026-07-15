@@ -45,7 +45,7 @@ git status
 
 ### 남은 작업 (순서 확정 — 2026-07-14, 1번 완료로 재번호)
 
-1. 시뮬레이터 2-a. 프롬프트 검증 — 단일 "면접관" 페르소나(장르별 3분할 안 함) + 난이도 3단계. `prompt_test/`의 `GENAI_CACHE` 캐시 재사용(무료 쿼터 절약).
+1. 시뮬레이터 2-a. 프롬프트 검증 — 🟡 진행 중 (2026-07-15). 단일 "면접관" 페르소나(장르별 3분할 안 함) + 난이도 3단계(하/중/상) 설계 완료: `prompt_test/simulator_prompts.py`(페르소나·난이도·테스트용 배우 시뮬레이터), `prompt_test/simulator_run.py`(멀티턴 시뮬레이션 + 자동판정 하니스, `GENAI_CACHE` 재사용). 오디션 Q&A 형태(배우가 이미 연기했다고 가정 → 대본 근거로 질문·추궁)로 확정. easy×strong 1개 조합 검증 통과, 나머지 5개(easy×weak, medium/hard×strong/weak)는 `gemini-2.5-flash-lite` 무료 티어 **일일 호출 한도(20 req/day)** 소진으로 보류 — 한도 풀리면 `prompt_test`에서 `GENAI_CACHE=1 python simulator_run.py` 재실행(캐시로 기완료분은 재호출 없음).
 2. 시뮬레이터 DB 스키마 설계 + 테이블 생성 — `scripts`는 독백용 스키마라 시뮬레이터(대화 히스토리·난이도·오디션 결과)엔 안 맞음. 새 테이블(예: `simulations`, 대화 히스토리는 JSONB) 필요. `init_db.py`(없는 테이블만 생성, 컬럼 변경 불가)로는 안 됨 — `migrate_create_analysis.py`와 같은 방식으로 `migrate_create_simulations.py` 작성해 raw SQL 직접 실행.
 3. 시뮬레이터 2-b. HTTP 멀티턴 구현 (대화 히스토리 + 아카이브 자동저장) — 핵심 가치는 여기서 완성.
 4. Recharts 성장 그래프 — 2-b에서 이미 데이터가 쌓이기 시작하므로 2-c(WebSocket) 완료를 기다릴 필요 없음.
@@ -88,3 +88,4 @@ git status
 
 - `SUPABASE_JWT_SECRET` 사용 안 함 — Supabase는 ES256 알고리즘 사용. `PyJWKClient`로 JWKS에서 공개키 직접 조회.
 - `backend/.env`와 `prompt_test/.env`는 .gitignore 처리됨. 커밋 전 항상 확인.
+- `gemini-2.5-flash-lite` 무료 티어는 **일일 호출 한도 20 req/day**(현재 API 키 기준, 429 RESOURCE_EXHAUSTED 메시지로 확인). 소진 시 재시도 대기(초 단위)로는 안 풀림 — 다음 날까지 대기 필요. 프롬프트 검증 작업은 `GENAI_CACHE=1`로 항상 실행해 캐시 재사용.
